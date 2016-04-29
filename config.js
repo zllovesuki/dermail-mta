@@ -1,11 +1,8 @@
 var self = module.exports = {
 	apiVersion: 2,
-	redisQ: {
-		host: '127.0.0.1',
-		port: 6379
-	},
+	redisQ: require('./config.json').redisQ,
 	Qconfig: {
-		attempts: 10,
+		attempts: 50,
 		backoff: {
 			type: 'exponential',
 			delay: 2000
