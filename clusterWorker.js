@@ -30,6 +30,9 @@ if (cluster.isMaster) {
 	var s3 = knox.createClient(config.s3);
 
 	messageQ.process(function(job, done) {
+
+		job.remoteSecret = config.remoteSecret;
+
 		request
 		.post(config.rx.hook())
 		.timeout(10000)

@@ -43,7 +43,10 @@ if (cluster.isMaster) {
 			return request
 			.post(config.rx.checkRecipient())
 			.timeout(5000)
-			.send({to: email})
+			.send({
+				to: email,
+				remoteSecret: config.remoteSecret
+			})
 			.set('Accept', 'application/json')
 			.end(function(err, res){
 				if (err) {

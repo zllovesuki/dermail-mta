@@ -8,6 +8,7 @@ var self = module.exports = {
 			delay: 2000
 		}
 	},
+	remoteSecret: require('./config.json').remoteSecret,
 	s3: require('./config.json').s3,
 	apiEndpoint: function() {
 		var apiEndpoint = require('./config.json').apiEndpoint;
