@@ -30,8 +30,6 @@ if (cluster.isMaster) {
     });
 	cluster.on('exit', function(worker, code, signal) {
 		console.log('Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);
-		console.log('Starting a new worker...');
-		spawn(i);
 	});
 }else{
 	var MTA = require('dermail-smtp-inbound');
