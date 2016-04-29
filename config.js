@@ -1,4 +1,5 @@
 var self = module.exports = {
+	apiVersion: 2,
 	redisQ: {
 		host: '127.0.0.1',
 		port: 6379
@@ -11,13 +12,16 @@ var self = module.exports = {
 		}
 	},
 	s3: require('./config.json').s3,
-	apiEndpoint: require('./config.json').apiEndpoint,
+	apiEndpoint: function() {
+		var apiEndpoint = require('./config.json').apiEndpoint;
+		return apiEndpoint + '/v' + self.apiVersion;
+	},
 	rx: {
 		hook: function() {
-			return self.apiEndpoint + '/rx/store';
+			return self.apiEndpoint() + '/rx/store';
 		},
 		checkRecipient: function() {
-			return self.apiEndpoint + '/rx/check-recipient';
+			return self.apiEndpoint() + '/rx/check-recipient';
 		}
 	}
 }
