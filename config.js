@@ -11,13 +11,13 @@ var self = module.exports = {
 		}
 	},
 	s3: require('./config.json').s3,
-	base: require('./config.json').base,
+	apiEndpoint: require('./config.json').apiEndpoint,
 	rx: {
 		hook: function() {
-			return self.base + '/rx/store';
+			return self.apiEndpoint + '/rx/store';
 		},
 		checkRecipient: function() {
-			return self.base + '/rx/check-recipient';
+			return self.apiEndpoint + '/rx/check-recipient';
 		}
 	}
 }
