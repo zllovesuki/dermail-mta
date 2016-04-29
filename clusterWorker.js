@@ -31,7 +31,7 @@ if (cluster.isMaster) {
 
 	messageQ.process(function(job, done) {
 
-		job.remoteSecret = config.remoteSecret;
+		job.data.remoteSecret = config.remoteSecret;
 
 		request
 		.post(config.rx.hook())
