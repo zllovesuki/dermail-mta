@@ -7,13 +7,17 @@
 				"PORT": 2525,
 			},
 			"watch": true,
-			"restart_delay": 5000
+			"restart_delay": 5000,
+			"exec_mode": "cluster",
+			"instances": 4
 		},
 		{
 			"name": "MTA-Worker",
 			"script": "Worker.js",
 			"watch": true,
-			"restart_delay": 5000
+			"restart_delay": 5000,
+			"exec_mode": "cluster",
+			"instances": 4
 		}
 	]
 }
