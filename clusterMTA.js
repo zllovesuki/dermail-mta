@@ -50,10 +50,10 @@ if (cluster.isMaster) {
 			.set('Accept', 'application/json')
 			.end(function(err, res){
 				if (err) {
-					// Service available, we will let it slide
+					// Service not available, we will let it slide
 					return resolve();
 				}
-				if (res.body.hasOwnProperty('ok')) {
+				if (res.body.ok === true) {
 					return resolve();
 				}else{
 					return reject(new Error('Invalid'));

@@ -15,6 +15,9 @@ var self = module.exports = {
 		return apiEndpoint + '/v' + self.apiVersion;
 	},
 	rx: {
+		s3: function() {
+			return self.apiEndpoint() + '/rx/get-s3';
+		},
 		hook: function() {
 			return self.apiEndpoint() + '/rx/store';
 		},
