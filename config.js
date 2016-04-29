@@ -14,10 +14,10 @@ var self = module.exports = {
 	base: require('./config.json').base,
 	rx: {
 		hook: function() {
-			return self.base + '/rx-hook';
+			return self.base + '/rx/store';
 		},
 		checkRecipient: function() {
-			return self.base + '/rx-check-recipient';
+			return self.base + '/rx/check-recipient';
 		}
 	}
 }
