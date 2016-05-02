@@ -19,7 +19,6 @@ options {
 	dnssec-validation yes;
 
         auth-nxdomain no;    # conform to RFC1035
-        listen-on-v6 { any; };
 };' > /etc/bind/named.conf.options 
 
 systemctl restart bind9
