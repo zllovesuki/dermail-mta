@@ -161,9 +161,6 @@ start()
 					return setAttachmentStatus(mailPath, hasAttachments ? 'no' : 'yes');
 				})
 				.then(function() {
-					return enqueue('garbageCollection', connection);
-				})
-				.then(function() {
 					return enqueue('parseMail', connection);
 				})
 				.then(function() {
@@ -176,6 +173,9 @@ start()
 						connection: connection,
 						attachments: mail.attachments
 					});
+				})
+				.then(function() {
+					return enqueue('garbageCollection', connection);
 				})
 				.then(function(results) {
 					if (debug) console.log('processMail done');
