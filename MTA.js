@@ -13,8 +13,7 @@ if (resolv.indexOf('127.0.0.1') === -1) {
 }
 
 var MTA = require('dermail-smtp-inbound');
-var messageQ = new Queue('dermail', config.redisQ.port, config.redisQ.host);
-var attachmentQ = new Queue('dermail-attachments', config.redisQ.port, config.redisQ.host);
+var messageQ = new Queue('dermail-mta', config.redisQ.port, config.redisQ.host);
 
 var validateRecipient = function(email, envelope) {
 	return new Promise(function(resolve, reject) {
@@ -40,15 +39,15 @@ var validateRecipient = function(email, envelope) {
 	})
 }
 
-var mailReady = function(mail) {
+var mailReady = function(connection) {
 	return new Promise(function(resolve, reject) {
-		mail.attachments.forEach(function (attachment) {
-			var tmpAttachment = _.cloneDeep(attachment);
-			delete attachment.content;
-			attachmentQ.add(tmpAttachment, config.Qconfig);
-		});
-		messageQ.add(mail, config.Qconfig);
-		return resolve();
+		return messageQ.add({
+			type: 'processMail',
+			payload: connection
+		}, config.Qconfig)
+		.then(function() {
+			return resolve();
+		})
 	})
 }
 
@@ -97,6 +96,7 @@ var validateConnection = function(connection) {
 }
 
 MTA.start({
+	doNotParse: true,
 	port: process.env.PORT || 25,
 	handlers: {
 		validateConnection: validateConnection,
