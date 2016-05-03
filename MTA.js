@@ -98,6 +98,7 @@ var validateConnection = function(connection) {
 MTA.start({
 	doNotParse: true,
 	port: process.env.PORT || 25,
+	tmp: config.tmpDir || '/tmp',
 	handlers: {
 		validateConnection: validateConnection,
 		validateRecipient: validateRecipient,
