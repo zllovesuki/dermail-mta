@@ -342,6 +342,8 @@ start()
 			var mailPath = connection.tmpPath;
 			var attachment = data.attachment;
 
+			if (debug) console.log('uploadSingleAttachment started', mailPath, attachment.generatedFileName);
+
 			var attachmentPath = mailPath + '-' + attachment.generatedFileName;
 
 			var uploadS3Stream = function(connection, attachment) {
