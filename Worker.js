@@ -13,9 +13,7 @@ Promise.promisifyAll(redis.RedisClient.prototype);
 
 var messageQ = new Queue('dermail-mta', config.redisQ.port, config.redisQ.host);
 var redisStore = redis.createClient(config.redisQ);
-var debug = false;
-
-if (process.env.PORT) debug = true;
+var debug = !!config.debug;
 
 var start = function() {
 	return new Promise(function(resolve, reject) {
