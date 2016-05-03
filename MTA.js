@@ -104,7 +104,8 @@ MTA.start({
 		mailReady: mailReady
 	},
 	smtpOptions: {
-		size: 26214400, // 50 MB message limit
+		size: config.mailSizeLimit || 52428800, // Default 50 MB message limit
+		// Notice that this is the ENTIRE email. Headers, body, attachments, etc.
 		banner: 'Dermail.net, by sdapi.net',
 		key: fs.readFileSync(__dirname + '/ssl/key'),
 		cert: fs.readFileSync(__dirname + '/ssl/chain')

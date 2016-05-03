@@ -8,6 +8,7 @@ var self = module.exports = {
 			delay: 2000
 		}
 	},
+	mailSizeLimit: require('./config.json').mailSizeLimit,
 	debug: require('./config.json').debug,
 	remoteSecret: require('./config.json').remoteSecret,
 	s3: require('./config.json').s3,
