@@ -33,7 +33,7 @@ var start = function() {
 				return reject(new Error('Cannot get S3 credentials.'));
 			}
 
-			if (debug) console.log('Process ' + process.pid + ' is running as an MTA-Worker.')
+			console.log('Process ' + process.pid + ' is running as an MTA-Worker.')
 
 			var s3 = knox.createClient(res.body.data);
 
