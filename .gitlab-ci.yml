@@ -11,8 +11,8 @@ before_script:
   - mkdir ssl/
   - cp .gitlab-ci.key ssl/key
   - cp .gitlab-ci.crt ssl/chain
-  - PORT=2525 forever start MTA.js
-  - forever start Worker.js
+  - PORT=2525 node MTA.js
+  - node Worker.js
 
 swaks:
   script:
