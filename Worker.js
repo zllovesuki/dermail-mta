@@ -151,7 +151,7 @@ start()
 					if (!hasAttachments) return
 					return Promise.map(mail.attachments, function(attachment) {
 						delete attachment.stream;
-						return setSingleAttachmentStatus(mailPath, attachment.generatedFileName, {
+						return setSingleAttachmentStatus(mailPath, attachment.contentId, {
 							checksum: attachment.checksum,
 							length: attachment.length
 						});
@@ -305,12 +305,12 @@ start()
 
 			mailParser.on('attachment', function(attachment, mail) {
 
-				var attachmentPath = mailPath + '-' + attachment.generatedFileName;
+				var attachmentPath = mailPath + '-' + attachment.contentId;
 
 				var attachmentTmp = attachment.stream.pipe(fs.createWriteStream(attachmentPath));
 
 				attachmentTmp.on('finish', function() {
-					return getSingleAttachmentStatus(mailPath, attachment.generatedFileName)
+					return getSingleAttachmentStatus(mailPath, attachment.contentId)
 					.then(function(obj) {
 						attachment.length = obj.length;
 						attachment.checksum = obj.checksum;
@@ -344,9 +344,9 @@ start()
 			var mailPath = connection.tmpPath;
 			var attachment = data.attachment;
 
-			if (debug) console.log('uploadSingleAttachment started', mailPath, attachment.generatedFileName);
+			if (debug) console.log('uploadSingleAttachment started', mailPath, attachment.contentId);
 
-			var attachmentPath = mailPath + '-' + attachment.generatedFileName;
+			var attachmentPath = mailPath + '-' + attachment.contentId;
 
 			var uploadS3Stream = function(connection, attachment) {
 				return new Promise(function(resolve, reject) {
@@ -368,13 +368,13 @@ start()
 
 			return uploadS3Stream(connection, attachment)
 			.then(function() {
-				return setSingleAttachmentStatus(mailPath, attachment.generatedFileName, 'yes');
+				return setSingleAttachmentStatus(mailPath, attachment.contentId, 'yes');
 			})
 			.then(function() {
 				return fs.unlinkAsync(attachmentPath);
 			})
 			.then(function() {
-				if (debug) console.log('uploadSingleAttachment done', mailPath, attachment.generatedFileName);
+				if (debug) console.log('uploadSingleAttachment done', mailPath, attachment.contentId);
 				return done();
 			})
 			.catch(function(e) {
@@ -393,9 +393,9 @@ start()
 			var attachmentDone = true;
 
 			return Promise.map(attachments, function(attachment) {
-				return getSingleAttachmentStatus(mailPath, attachment.generatedFileName)
+				return getSingleAttachmentStatus(mailPath, attachment.contentId)
 				.then(function(status) {
-					if (debug) console.log(mailPath, attachment.generatedFileName, 'not yet uploaded');
+					if (debug) console.log(mailPath, attachment.contentId, 'not yet uploaded');
 					if (typeof status === 'object') attachmentDone = false;
 				})
 			}, { concurrency: 3 })
