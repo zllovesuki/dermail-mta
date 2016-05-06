@@ -8,9 +8,12 @@ before_script:
   - npm install
   - npm install -g forever
   - cp .gitlab-ci.config.json config.json
-  - PORT=2525 node MTA.js
-  - node Worker.js
+  - mkdir ssl/
+  - cp .gitlab-ci.key ssl/key
+  - cp .gitlab-ci.crt ssl/chain
+  - PORT=2525 forever start MTA.js
+  - forever start Worker.js
 
-mta:
+swaks:
   script:
     - swaks --server 127.0.0.1:2525 --from john@doe.com --to doe@john.com
