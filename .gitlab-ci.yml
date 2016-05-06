@@ -10,4 +10,7 @@ before_script:
   - cp .gitlab-ci.config.json config.json
   - PORT=2525 forever start MTA.js
   - forever start Worker.js
-  - swaks --server 127.0.0.1:2525 --from john@doe.com --to doe@john.com
+
+mta:
+  script:
+    - swaks --server 127.0.0.1:2525 --from john@doe.com --to doe@john.com
