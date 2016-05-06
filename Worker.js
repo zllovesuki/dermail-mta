@@ -155,7 +155,7 @@ start()
 							checksum: attachment.checksum,
 							length: attachment.length
 						});
-					});
+					}, { concurrency: 3 });
 				})
 				.then(function() {
 					return setAttachmentStatus(mailPath, hasAttachments ? 'no' : 'yes');
@@ -390,7 +390,7 @@ start()
 					if (debug) console.log(mailPath, attachment.generatedFileName, 'not yet uploaded');
 					if (typeof status === 'object') attachmentDone = false;
 				})
-			})
+			}, { concurrency: 3 });
 			.then(function() {
 				if (attachmentDone) {
 					if (debug) console.log(mailPath, 'all uploaded');
