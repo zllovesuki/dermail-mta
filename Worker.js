@@ -299,15 +299,9 @@ start()
 
 				var attachmentPath = mailPath + '-' + attachment.generatedFileName;
 
-				var attachmentTmp = fs.createWriteStream(attachmentPath);
+				var attachmentTmp = attachment.stream.pipe(fs.createWriteStream(attachmentPath));
 
-				attachment.stream.on('data', function(chunk) {
-					attachmentTmp.write(chunk);
-				});
-
-				attachment.stream.on('end', function() {
-					attachmentTmp.end();
-
+				attachmentTmp.on('finish', function() {
 					return getSingleAttachmentStatus(mailPath, attachment.generatedFileName)
 					.then(function(obj) {
 						attachment.length = obj.length;
