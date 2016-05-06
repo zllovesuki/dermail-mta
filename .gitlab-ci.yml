@@ -8,8 +8,8 @@ before_script:
   - npm install
   - npm install -g forever
   - cp .gitlab-ci.config.json config.json
-  - PORT=2525 forever start MTA.js
-  - forever start Worker.js
+  - PORT=2525 node MTA.js
+  - node Worker.js
 
 mta:
   script:
