@@ -1,0 +1,13 @@
+image: node:4.4.3
+
+services:
+  - redis:latest
+
+before_script:
+  - apt-get update -qq && apt-get install -y -qq swaks
+  - npm install
+  - npm install -g forever
+  - cp .gitlab-ci.config.json config.json
+  - PORT=2525 forever start MTA.js
+  - forever start Worker.js
+  - swaks --server 127.0.0.1:2525 --from john@doe.com --to doe@john.com

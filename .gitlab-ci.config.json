@@ -1,0 +1,9 @@
+{
+	"redisQ":{
+		"host": "redis",
+		"port": 6379
+	},
+	"debug": true,
+	"remoteSecret": "123",
+	"apiEndpoint": "http://dermail-ci-dummy.api.blue"
+}
