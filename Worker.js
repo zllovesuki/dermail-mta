@@ -251,6 +251,14 @@ start()
 			var mail = data;
 			mail.remoteSecret = config.remoteSecret;
 
+			// Extra data to help with remote debugging
+			mail.MTAExtra = {
+				attemptsMade: job.attemptsMade,
+				maxAttempts: job.attempts,
+				delay: job.delay,
+				jobId: job.jobId
+			};
+
 			var store = function(message) {
 				return new Promise(function(resolve, reject) {
 					request
