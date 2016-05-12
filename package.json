@@ -1,6 +1,6 @@
 {
   "name": "dermail-mta",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Dermail MTA",
   "main": "index.js",
   "scripts": {

@@ -8,6 +8,7 @@ var self = module.exports = {
 			delay: 2000
 		}
 	},
+	cleanInterval: require('./config.json').cleanInterval || 10,
 	tmpDir: require('./config.json').tmpDir,
 	mailSizeLimit: require('./config.json').mailSizeLimit,
 	debug: require('./config.json').debug,
