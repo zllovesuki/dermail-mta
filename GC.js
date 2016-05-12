@@ -13,4 +13,4 @@ setInterval(function() {
 	});
 }, the_interval)
 
-console.log('Process ' + process.pid + ' is running to clean up garbase in the queue every ' + minutes + ' minutes.')
+console.log('Process ' + process.pid + ' is running to clean up garbage in the queue every ' + minutes + ' minutes.')
