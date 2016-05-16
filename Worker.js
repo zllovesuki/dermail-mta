@@ -62,9 +62,7 @@ var setParseStatus = function(path, status) {
 
 var getParseStatus = function(path) {
 	if (debug) console.log('get parse:', path);
-	return redisStore.getAsync(getParseKey(path)).then(function(res) {
-		return res;
-	})
+	return redisStore.getAsync(getParseKey(path));
 }
 
 var setAttachmentStatus = function(path, status) {
@@ -80,9 +78,7 @@ var setSingleAttachmentStatus = function(path, filename, status) {
 
 var getAttachmentStatus = function(path) {
 	if (debug) console.log('get attachment:', path);
-	return redisStore.getAsync(getAttachmentKey(path)).then(function(res) {
-		return res;
-	})
+	return redisStore.getAsync(getAttachmentKey(path));
 }
 
 var getGarbageKeys = function(path) {
