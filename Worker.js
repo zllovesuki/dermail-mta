@@ -85,6 +85,10 @@ var getAttachmentStatus = function(path) {
 	})
 }
 
+var getGarbageKeys = function(path) {
+	return redisStore.keysAsync(path + ':*')
+}
+
 var getSingleAttachmentStatus = function(path, filename) {
 	if (debug) console.log('get attachment:', path, filename);
 	return redisStore.getAsync(getSingleAttachmentKey(path, filename)).then(function(res) {
@@ -425,6 +429,14 @@ start()
 					if (debug) console.log(parse, attachment);
 					if (parse === 'yes' && attachment === 'yes') {
 						return fs.unlinkAsync(mailPath)
+						.then(function() {
+							return getGarbageKeys(mailPath);
+						})
+						.then(function(rows) {
+							return Promise.map(rows, function(key) {
+								return redisStore.delAsync(key);
+							}, { concurrency: 3 })
+						})
 						.then(function() {
 							if (debug) console.log('garbage collected');
 							return done();
