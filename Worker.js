@@ -7,13 +7,29 @@ var _ = require('lodash'),
 	MailParser = require('mailparser').MailParser,
 	helper = require('./helper'),
 	request = require('superagent'),
-	fs = Promise.promisifyAll(require('fs'));
+	fs = Promise.promisifyAll(require('fs')),
+	bunyan = require('bunyan'),
+	stream = require('gelf-stream'),
+	log;
 
 Promise.promisifyAll(redis.RedisClient.prototype);
 
 var messageQ = new Queue('dermail-mta', config.redisQ.port, config.redisQ.host);
 var redisStore = redis.createClient(config.redisQ);
-var debug = !!config.debug;
+
+if (!!config.graylog) {
+	log = bunyan.createLogger({
+		name: 'MTA-Worker',
+		streams: [{
+			type: 'raw',
+			stream: stream.forBunyan(config.graylog)
+		}]
+	});
+}else{
+	log = bunyan.createLogger({
+		name: 'MTA-Worker'
+	});
+}
 
 var start = function() {
 	return new Promise(function(resolve, reject) {
@@ -29,11 +45,10 @@ var start = function() {
 				return reject(err);
 			}
 			if (res.body.ok !== true) {
-				if (debug) console.dir(res.body);
 				return reject(new Error('Cannot get S3 credentials.'));
 			}
 
-			console.log('Process ' + process.pid + ' is running as an MTA-Worker.')
+			log.info('Process ' + process.pid + ' is running as an MTA-Worker.')
 
 			var s3 = knox.createClient(res.body.data);
 
@@ -56,28 +71,23 @@ var getSingleAttachmentKey = function(path, filename) {
 }
 
 var setParseStatus = function(path, status) {
-	if (debug) console.log('set parse:', path, status);
 	return redisStore.setAsync(getParseKey(path), status)
 }
 
 var getParseStatus = function(path) {
-	if (debug) console.log('get parse:', path);
 	return redisStore.getAsync(getParseKey(path));
 }
 
 var setAttachmentStatus = function(path, status) {
-	if (debug) console.log('set attachment:', path, status);
 	return redisStore.setAsync(getAttachmentKey(path), status)
 }
 
 var setSingleAttachmentStatus = function(path, filename, status) {
 	if (typeof status === 'object') status = JSON.stringify(status);
-	if (debug) console.log('set attachment:', path, filename, status);
 	return redisStore.setAsync(getSingleAttachmentKey(path, filename), status)
 }
 
 var getAttachmentStatus = function(path) {
-	if (debug) console.log('get attachment:', path);
 	return redisStore.getAsync(getAttachmentKey(path));
 }
 
@@ -86,7 +96,6 @@ var getGarbageKeys = function(path) {
 }
 
 var getSingleAttachmentStatus = function(path, filename) {
-	if (debug) console.log('get attachment:', path, filename);
 	return redisStore.getAsync(getSingleAttachmentKey(path, filename)).then(function(res) {
 		try {
 			res = JSON.parse(res);
@@ -112,10 +121,17 @@ start()
 		var type = data.type;
 		data = data.payload;
 
+		log.info('Received Job: ', job);
+
+		var callback = function(err) {
+			if (err) {
+				log.error(err);
+			}
+			return done(err);
+		}
+
 		switch (type) {
 			case 'processMail':
-
-			if (debug) console.log('processMail started');
 
 			var connection = data;
 			var mailPath = connection.tmpPath;
@@ -139,10 +155,10 @@ start()
 					enqueue('uploadAttachments', mailPath)
 				])
 				.then(function(results) {
-					return done();
+					return callback();
 				})
 				.catch(function(e) {
-					return done(e);
+					return callback(e);
 				});*/
 
 				// But if we can't set redis for status, we want to abort early
@@ -178,12 +194,10 @@ start()
 					return enqueue('garbageCollection', connection);
 				})
 				.then(function(results) {
-					if (debug) console.log('processMail done');
-					return done();
+					return callback();
 				})
 				.catch(function(e) {
-					if (debug) console.error('processMail error', e);
-					return done(e);
+					return callback(e);
 				});
 
 			})
@@ -193,8 +207,6 @@ start()
 			break;
 
 			case 'parseMail':
-
-			if (debug) console.log('parseMail started');
 
 			var connection = data;
 			var mailPath = connection.tmpPath;
@@ -231,12 +243,10 @@ start()
 					return setParseStatus(mailPath, 'yes');
 				})
 				.then(function() {
-					if (debug) console.log('parseMail done');
-					return done();
+					return callback();
 				})
 				.catch(function(e) {
-					if (debug) console.error('parseMail error', e);
-					return done(e);
+					return callback(e);
 				})
 			});
 
@@ -245,8 +255,6 @@ start()
 			break;
 
 			case 'storeMail':
-
-			if (debug) console.log('storeMail started');
 
 			var mail = data;
 			mail.remoteSecret = config.remoteSecret;
@@ -268,13 +276,11 @@ start()
 					.set('Accept', 'application/json')
 					.end(function(err, res){
 						if (err) {
-							if (debug) console.log(err);
 							return reject(err);
 						}
 						if (res.body.ok === true) {
 							return resolve();
 						}else{
-							if (debug) console.dir(res.body);
 							return reject(res.body);
 						}
 					});
@@ -283,19 +289,15 @@ start()
 
 			return store(mail)
 			.then(function() {
-				if (debug) console.log('storeMail done');
-				return done();
+				return callback();
 			})
 			.catch(function(e) {
-				if (debug) console.error('storeMail error', e);
-				return done(e);
+				return callback(e);
 			})
 
 			break;
 
 			case 'saveAttachmentsTemporary':
-
-			if (debug) console.log('assign uploadAttachments started');
 
 			var connection = data;
 			var mailPath = connection.tmpPath;
@@ -322,16 +324,14 @@ start()
 						});
 					})
 					.catch(function(e) {
-						if (debug) console.error('assign uploadSingleAttachment error', e);
-						//return done(e);
+						//return callback(e);
 					})
 				})
 
 			});
 
 			mailParser.on('end', function(mail) {
-				if (debug) console.log('End of attachment parse');
-				return done();
+				return callback();
 			})
 
 			fs.createReadStream(mailPath).pipe(mailParser);
@@ -343,8 +343,6 @@ start()
 			var connection = data.connection;
 			var mailPath = connection.tmpPath;
 			var attachment = data.attachment;
-
-			if (debug) console.log('uploadSingleAttachment started', mailPath, attachment.contentId);
 
 			var attachmentPath = mailPath + '-' + attachment.contentId;
 
@@ -374,12 +372,10 @@ start()
 				return fs.unlinkAsync(attachmentPath);
 			})
 			.then(function() {
-				if (debug) console.log('uploadSingleAttachment done', mailPath, attachment.contentId);
-				return done();
+				return callback();
 			})
 			.catch(function(e) {
-				if (debug) console.error('uploadSingleAttachment error', e);
-				return done(e);
+				return callback(e);
 			})
 
 			break;
@@ -395,19 +391,17 @@ start()
 			return Promise.map(attachments, function(attachment) {
 				return getSingleAttachmentStatus(mailPath, attachment.contentId)
 				.then(function(status) {
-					if (debug) console.log(mailPath, attachment.contentId, 'not yet uploaded');
 					if (typeof status === 'object') attachmentDone = false;
 				})
 			}, { concurrency: 3 })
 			.then(function() {
 				if (attachmentDone) {
-					if (debug) console.log(mailPath, 'all uploaded');
 					return setAttachmentStatus(mailPath, 'yes')
 					.then(function() {
-						return done();
+						return callback();
 					})
 				}else{
-					return done(new Error('Waiting for all files to be uploaded'));
+					return callback(new Error('Waiting for all files to be uploaded'));
 				}
 			})
 
@@ -422,7 +416,6 @@ start()
 				getParseStatus(mailPath),
 				getAttachmentStatus(mailPath),
 				function(parse, attachment) {
-					if (debug) console.log(parse, attachment);
 					if (parse === 'yes' && attachment === 'yes') {
 						return fs.unlinkAsync(mailPath)
 						.then(function() {
@@ -434,16 +427,13 @@ start()
 							}, { concurrency: 3 })
 						})
 						.then(function() {
-							if (debug) console.log('garbage collected');
-							return done();
+							return callback();
 						})
 						.catch(function(e) {
-							if (debug) console.log('cannot unlink tmpPath');
-							return done(e);
+							return callback(e);
 						})
 					}else{
-						if (debug) console.log('garbage not yet collected');
-						return done(new Error('Waiting for parse and upload to finish'));
+						return callback(new Error('Waiting for parse and upload to finish'));
 					}
 				}
 			)
@@ -453,5 +443,5 @@ start()
 	});
 })
 .catch(function(e) {
-	if (debug) console.log(e);
+	log.error(e);
 })

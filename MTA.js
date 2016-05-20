@@ -4,7 +4,8 @@ var	_ = require('lodash'),
 	Promise = require('bluebird'),
 	request = require('superagent'),
 	dns = Promise.promisifyAll(require('dns')),
-	fs = Promise.promisifyAll(require('fs'));
+	fs = Promise.promisifyAll(require('fs')),
+	log;
 
 var resolv = fs.readFileSync('/etc/resolv.conf', {encoding: 'utf-8'});
 if (resolv.indexOf('127.0.0.1') === -1) {
@@ -14,6 +15,20 @@ if (resolv.indexOf('127.0.0.1') === -1) {
 
 var MTA = require('dermail-smtp-inbound');
 var messageQ = new Queue('dermail-mta', config.redisQ.port, config.redisQ.host);
+
+if (!!config.graylog) {
+	log = require('bunyan').createLogger({
+		name: 'MTA',
+		streams: [{
+			type: 'raw',
+			stream: require('gelf-stream').forBunyan(config.graylog)
+		}]
+	});
+}else{
+	log = require('bunyan').createLogger({
+		name: 'MTA'
+	});
+}
 
 var validateRecipient = function(email, envelope) {
 	return new Promise(function(resolve, reject) {
@@ -28,11 +43,14 @@ var validateRecipient = function(email, envelope) {
 		.end(function(err, res){
 			if (err) {
 				// Service not available, we will let it slide
+				log.info('Service not available', err);
 				return resolve();
 			}
 			if (res.body.ok === true) {
+				log.info('Recipient accepted', email, envelope);
 				return resolve();
 			}else{
+				log.info('Recipient rejected', email, envelope);
 				return reject(new Error('Invalid'));
 			}
 		});
@@ -86,10 +104,11 @@ var validateConnection = function(connection) {
 		var remoteAddress = connection.remoteAddress;
 		return spamhausZen(remoteAddress)
 		.then(function(rejection) {
-			console.log(connection, rejection)
+			log.info('Connection rejected by Spamhaus', connection);
 			return reject(new Error('Your IP is Blacklisted by Spamhaus'))
 		})
 		.catch(function(acceptance) {
+			log.info('Connection accepted', connection);
 			return resolve();
 		})
 	})
@@ -113,4 +132,4 @@ MTA.start({
 	}
 });
 
-console.log('Process ' + process.pid + ' is listening to incoming SMTP.')
+log.info('Process ' + process.pid + ' is listening to incoming SMTP.')

@@ -8,10 +8,10 @@ var self = module.exports = {
 			delay: 2000
 		}
 	},
+	graylog: require('./config.json').graylog || null,
 	cleanInterval: require('./config.json').cleanInterval || 10,
 	tmpDir: require('./config.json').tmpDir,
 	mailSizeLimit: require('./config.json').mailSizeLimit,
-	debug: require('./config.json').debug,
 	remoteSecret: require('./config.json').remoteSecret,
 	s3: require('./config.json').s3,
 	apiEndpoint: function() {
