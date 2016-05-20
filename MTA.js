@@ -43,14 +43,14 @@ var validateRecipient = function(email, envelope) {
 		.end(function(err, res){
 			if (err) {
 				// Service not available, we will let it slide
-				log.info('Service not available', err);
+				log.error({ msg: 'Service not available', error: err });
 				return resolve();
 			}
 			if (res.body.ok === true) {
-				log.info('Recipient accepted', email, envelope);
+				log.info({ msg: 'Recipient accepted', email: email, envelope: envelope });
 				return resolve();
 			}else{
-				log.info('Recipient rejected', email, envelope);
+				log.info({ msg: 'Recipient rejected', email: email, envelope: envelope });
 				return reject(new Error('Invalid'));
 			}
 		});
@@ -104,11 +104,11 @@ var validateConnection = function(connection) {
 		var remoteAddress = connection.remoteAddress;
 		return spamhausZen(remoteAddress)
 		.then(function(rejection) {
-			log.info('Connection rejected by Spamhaus', connection);
+			log.info({ msg: 'Connection rejected by Spamhaus', connection: connection });
 			return reject(new Error('Your IP is Blacklisted by Spamhaus'))
 		})
 		.catch(function(acceptance) {
-			log.info('Connection accepted', connection);
+			log.info({ msg: 'Connection accepted', connection: connection });
 			return resolve();
 		})
 	})

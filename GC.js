@@ -22,7 +22,7 @@ var minutes = config.cleanInterval,
 	the_interval = minutes * 60 * 1000;
 
 messageQ.on('cleaned', function (job, type) {
-	log.info('Cleaned %s %s jobs on', job.length, type);
+	log.info('Cleaned %s %s jobs', job.length, type);
 });
 
 setInterval(function() {
