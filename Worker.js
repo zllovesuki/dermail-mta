@@ -202,7 +202,12 @@ start()
 
 			})
 
-			fs.createReadStream(mailPath).pipe(mailParser);
+			try {
+				fs.createReadStream(mailPath).pipe(mailParser);
+			}catch(e) {
+				log.error({ message: 'Create read stream in processMail throws an error', error: e});
+				return callback(e);
+			}
 
 			break;
 
@@ -250,7 +255,12 @@ start()
 				})
 			});
 
-			fs.createReadStream(mailPath).pipe(mailParser);
+			try {
+				fs.createReadStream(mailPath).pipe(mailParser);
+			}catch(e) {
+				log.error({ message: 'Create read stream in parseMail throws an error', error: e});
+				return callback(e);
+			}
 
 			break;
 
@@ -309,24 +319,29 @@ start()
 
 				var attachmentPath = mailPath + '-' + attachment.contentId;
 
-				var attachmentTmp = attachment.stream.pipe(fs.createWriteStream(attachmentPath));
-
-				attachmentTmp.on('finish', function() {
-					return getSingleAttachmentStatus(mailPath, attachment.contentId)
-					.then(function(obj) {
-						attachment.length = obj.length;
-						attachment.checksum = obj.checksum;
+				try {
+					var stream = fs.createWriteStream(attachmentPath);
+					var attachmentTmp = attachment.stream.pipe(fs.createWriteStream(attachmentPath));
+					attachmentTmp.on('finish', function() {
+						return getSingleAttachmentStatus(mailPath, attachment.contentId)
+						.then(function(obj) {
+							attachment.length = obj.length;
+							attachment.checksum = obj.checksum;
+						})
+						.then(function() {
+							return enqueue('uploadSingleAttachment', {
+								connection: connection,
+								attachment: attachment
+							});
+						})
+						.catch(function(e) {
+							//return callback(e);
+						})
 					})
-					.then(function() {
-						return enqueue('uploadSingleAttachment', {
-							connection: connection,
-							attachment: attachment
-						});
-					})
-					.catch(function(e) {
-						//return callback(e);
-					})
-				})
+				}catch(e) {
+					log.error({ message: 'Create write stream in saveAttachmentsTemporary throws an error', error: e});
+					return callback(e);
+				}
 
 			});
 
@@ -334,7 +349,12 @@ start()
 				return callback();
 			})
 
-			fs.createReadStream(mailPath).pipe(mailParser);
+			try {
+				fs.createReadStream(mailPath).pipe(mailParser);
+			}catch(e) {
+				log.error({ message: 'Create read stream in saveAttachmentsTemporary throws an error', error: e});
+				return callback(e);
+			}
 
 			break;
 
