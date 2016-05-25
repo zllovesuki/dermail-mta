@@ -1,4 +1,5 @@
 var _ = require('lodash'),
+	crypto = require('crypto'),
 	Queue = require('bull'),
 	knox = require('knox'),
 	redis = require('redis'),
@@ -321,7 +322,7 @@ start()
 
 			mailParser.on('attachment', function(attachment, mail) {
 
-				var attachmentPath = mailPath + '-' + attachment.contentId;
+				var attachmentPath = mailPath + '-' + crypto.createHash('md5').update(attachment.contentId).digest("hex");
 
 				var writeStream = fs.createWriteStream(attachmentPath);
 
@@ -372,7 +373,7 @@ start()
 			var mailPath = connection.tmpPath;
 			var attachment = data.attachment;
 
-			var attachmentPath = mailPath + '-' + attachment.contentId;
+			var attachmentPath = mailPath + '-' + crypto.createHash('md5').update(attachment.contentId).digest("hex");
 
 			var uploadS3Stream = function(connection, attachment) {
 				return new Promise(function(resolve, reject) {
@@ -382,6 +383,11 @@ start()
 					};
 
 					var fileStream = fs.createReadStream(attachmentPath);
+
+					fileStream.on('error', function(e) {
+						log.error({ message: 'Create read stream in fileStream throws an error', error: e});
+						return reject(e);
+					})
 
 					s3.putStream(fileStream, '/' + attachment.checksum + '/' + attachment.generatedFileName, headers, function(err, res) {
 						if (err) {
