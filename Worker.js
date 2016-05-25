@@ -122,7 +122,12 @@ start()
 		var type = data.type;
 		data = data.payload;
 
-		log.info({ message: 'Received Job: ' + type, payload: data });
+		log.info({ message: 'Received Job: ' + type, payload: data, job: {
+			attemptsMade: job.attemptsMade,
+			maxAttempts: job.attempts,
+			delay: job.delay,
+			jobId: job.jobId
+		}});
 
 		var callback = function(err) {
 			if (err) {
