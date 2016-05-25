@@ -202,12 +202,14 @@ start()
 
 			})
 
-			try {
-				fs.createReadStream(mailPath).pipe(mailParser);
-			}catch(e) {
+			var readStream = fs.createReadStream(mailPath);
+
+			readStream.on('error', function(e) {
 				log.error({ message: 'Create read stream in processMail throws an error', error: e});
 				return callback(e);
-			}
+			})
+
+			readStream.pipe(mailParser);
 
 			break;
 
@@ -255,12 +257,14 @@ start()
 				})
 			});
 
-			try {
-				fs.createReadStream(mailPath).pipe(mailParser);
-			}catch(e) {
+			var readStream = fs.createReadStream(mailPath);
+
+			readStream.on('error', function(e) {
 				log.error({ message: 'Create read stream in parseMail throws an error', error: e});
 				return callback(e);
-			}
+			})
+
+			readStream.pipe(mailParser);
 
 			break;
 
@@ -319,29 +323,31 @@ start()
 
 				var attachmentPath = mailPath + '-' + attachment.contentId;
 
-				try {
-					var stream = fs.createWriteStream(attachmentPath);
-					var attachmentTmp = attachment.stream.pipe(fs.createWriteStream(attachmentPath));
-					attachmentTmp.on('finish', function() {
-						return getSingleAttachmentStatus(mailPath, attachment.contentId)
-						.then(function(obj) {
-							attachment.length = obj.length;
-							attachment.checksum = obj.checksum;
-						})
-						.then(function() {
-							return enqueue('uploadSingleAttachment', {
-								connection: connection,
-								attachment: attachment
-							});
-						})
-						.catch(function(e) {
-							//return callback(e);
-						})
-					})
-				}catch(e) {
+				var writeStream = fs.createWriteStream(attachmentPath);
+
+				writeStream.on('error', function(e) {
 					log.error({ message: 'Create write stream in saveAttachmentsTemporary throws an error', error: e});
 					return callback(e);
-				}
+				})
+
+				var attachmentTmp = attachment.stream.pipe(writeStream);
+
+				attachmentTmp.on('finish', function() {
+					return getSingleAttachmentStatus(mailPath, attachment.contentId)
+					.then(function(obj) {
+						attachment.length = obj.length;
+						attachment.checksum = obj.checksum;
+					})
+					.then(function() {
+						return enqueue('uploadSingleAttachment', {
+							connection: connection,
+							attachment: attachment
+						});
+					})
+					.catch(function(e) {
+						//return callback(e);
+					})
+				})
 
 			});
 
@@ -349,12 +355,14 @@ start()
 				return callback();
 			})
 
-			try {
-				fs.createReadStream(mailPath).pipe(mailParser);
-			}catch(e) {
+			var readStream = fs.createReadStream(mailPath);
+
+			readStream.on('error', function(e) {
 				log.error({ message: 'Create read stream in saveAttachmentsTemporary throws an error', error: e});
 				return callback(e);
-			}
+			})
+
+			readStream.pipe(mailParser);
 
 			break;
 
