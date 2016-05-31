@@ -72,42 +72,50 @@ var getSingleAttachmentKey = function(path, filename) {
 }
 
 var setParseStatus = function(path, status) {
+	log.debug({ message: 'setParseStatus', path: path, status:status });
 	return redisStore.setAsync(getParseKey(path), status)
 }
 
 var getParseStatus = function(path) {
+	log.debug({ message: 'getParseStatus', path: path });
 	return redisStore.getAsync(getParseKey(path));
 }
 
 var setAttachmentStatus = function(path, status) {
+	log.debug({ message: 'setAttachmentStatus', path: path, status:status });
 	return redisStore.setAsync(getAttachmentKey(path), status)
 }
 
 var setSingleAttachmentStatus = function(path, filename, status) {
 	if (typeof status === 'object') status = JSON.stringify(status);
+	log.debug({ message: 'setSingleAttachmentStatus', path: path, filename: filename, status:status });
 	return redisStore.setAsync(getSingleAttachmentKey(path, filename), status)
 }
 
 var getAttachmentStatus = function(path) {
+	log.debug({ message: 'getAttachmentStatus', path: path });
 	return redisStore.getAsync(getAttachmentKey(path));
 }
 
 var getGarbageKeys = function(path) {
+	log.debug({ message: 'getGarbageKeys', path: path });
 	return redisStore.keysAsync(path + ':*')
 }
 
 var getSingleAttachmentStatus = function(path, filename) {
+	log.debug({ message: 'getSingleAttachmentStatus', path: path, filename: filename });
 	return redisStore.getAsync(getSingleAttachmentKey(path, filename)).then(function(res) {
 		try {
 			res = JSON.parse(res);
 		}catch(e) {
-
+			log.error({ message: 'JSON.parse in getSingleAttachmentStatus throws an error', path: path, filename: filename, response: res })
 		}
 		return res;
 	})
 }
 
 var enqueue = function(type, payload) {
+	log.debug({ message: 'enqueue: ' + type, payload: payload });
 	return messageQ.add({
 		type: type,
 		payload: payload
@@ -336,9 +344,7 @@ start()
 					return callback(e);
 				})
 
-				var attachmentTmp = attachment.stream.pipe(writeStream);
-
-				attachmentTmp.on('finish', function() {
+				writeStream.on('finish', function() {
 					return getSingleAttachmentStatus(mailPath, attachment.contentId)
 					.then(function(obj) {
 						attachment.length = obj.length;
@@ -351,9 +357,12 @@ start()
 						});
 					})
 					.catch(function(e) {
+						log.error({ message: 'writeStream (finish) in saveAttachmentsTemporary throws an error', error: e })
 						//return callback(e);
 					})
 				})
+
+				attachment.stream.pipe(writeStream);
 
 			});
 
