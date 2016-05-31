@@ -59,6 +59,7 @@ var validateRecipient = function(email, envelope) {
 
 var mailReady = function(connection) {
 	return new Promise(function(resolve, reject) {
+		log.info({ message: 'Mail ready for process', connection: connection });
 		return messageQ.add({
 			type: 'processMail',
 			payload: connection
