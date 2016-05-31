@@ -23,7 +23,6 @@
     "lodash": "^4.3.0",
     "mailparser": "^0.5.3",
     "redis": "^2.6.0-2",
-    "restify": "^4.0.3",
     "superagent": "^1.7.2"
   }
 }
