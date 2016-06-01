@@ -137,11 +137,11 @@ start()
 			jobId: job.jobId
 		}});
 
-		var callback = function(err) {
-			if (err) {
-				log.error({ message: 'Job ' + type + ' returns an error.', error: err });
+		var callback = function(e) {
+			if (e) {
+				log.info({ message: 'Job ' + type + ' returns an error.', error: '[' + e.name + '] ' + e.message, stack: e.stack });
 			}
-			return done(err);
+			return done(e);
 		}
 
 		switch (type) {
@@ -219,7 +219,7 @@ start()
 			var readStream = fs.createReadStream(mailPath);
 
 			readStream.on('error', function(e) {
-				log.error({ message: 'Create read stream in processMail throws an error', error: e});
+				log.error({ message: 'Create read stream in processMail throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
 				return callback(e);
 			})
 
@@ -274,7 +274,7 @@ start()
 			var readStream = fs.createReadStream(mailPath);
 
 			readStream.on('error', function(e) {
-				log.error({ message: 'Create read stream in parseMail throws an error', error: e});
+				log.error({ message: 'Create read stream in parseMail throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
 				return callback(e);
 			})
 
@@ -340,7 +340,7 @@ start()
 				var writeStream = fs.createWriteStream(attachmentPath);
 
 				writeStream.on('error', function(e) {
-					log.error({ message: 'Create write stream in saveAttachmentsTemporary throws an error', error: e});
+					log.error({ message: 'Create write stream in saveAttachmentsTemporary throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
 					return callback(e);
 				})
 
@@ -357,7 +357,7 @@ start()
 						});
 					})
 					.catch(function(e) {
-						log.error({ message: 'writeStream (finish) in saveAttachmentsTemporary throws an error', error: e })
+						log.error({ message: 'writeStream (finish) in saveAttachmentsTemporary throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
 						//return callback(e);
 					})
 				})
@@ -373,7 +373,7 @@ start()
 			var readStream = fs.createReadStream(mailPath);
 
 			readStream.on('error', function(e) {
-				log.error({ message: 'Create read stream in saveAttachmentsTemporary throws an error', error: e});
+				log.error({ message: 'Create read stream in saveAttachmentsTemporary throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
 				return callback(e);
 			})
 
@@ -399,7 +399,7 @@ start()
 					var fileStream = fs.createReadStream(attachmentPath);
 
 					fileStream.on('error', function(e) {
-						log.error({ message: 'Create read stream in fileStream throws an error', error: e});
+						log.error({ message: 'Create read stream in fileStream throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
 						return reject(e);
 					})
 
