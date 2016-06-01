@@ -139,7 +139,7 @@ start()
 
 		var callback = function(e) {
 			if (e) {
-				log.info({ message: 'Job ' + type + ' returns an error.', error: '[' + e.name + '] ' + e.message, stack: e.stack });
+				log.error({ message: 'Job ' + type + ' returns an error.', error: '[' + e.name + '] ' + e.message, stack: e.stack });
 			}
 			return done(e);
 		}
