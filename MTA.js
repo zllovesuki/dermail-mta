@@ -43,7 +43,7 @@ var validateRecipient = function(email, envelope) {
 		.end(function(err, res){
 			if (err) {
 				// Service not available, we will let it slide
-				log.error({ message: 'Service not available', err: err });
+				log.error({ message: 'Service not available', error: err.response.body });
 				return resolve();
 			}
 			if (res.body.ok === true) {
