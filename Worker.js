@@ -63,6 +63,10 @@ var getParseKey = function(path) {
 	return path + ':parse';
 }
 
+var getRawKey = function(path) {
+	return path + ':raw';
+}
+
 var getAttachmentKey = function(path) {
 	return path + ':attachment';
 }
@@ -79,6 +83,16 @@ var setParseStatus = function(path, status) {
 var getParseStatus = function(path) {
 	log.debug({ message: 'getParseStatus', path: path });
 	return redisStore.getAsync(getParseKey(path));
+}
+
+var setRawStatus = function(path, status) {
+	log.debug({ message: 'setRawStatus', path: path, status:status });
+	return redisStore.setAsync(getRawKey(path), status)
+}
+
+var getRawStatus = function(path) {
+	log.debug({ message: 'getRawStatus', path: path });
+	return redisStore.getAsync(getRawKey(path));
 }
 
 var setAttachmentStatus = function(path, status) {
@@ -188,7 +202,13 @@ start()
 					}, { concurrency: 3 })
 				})
 				.then(function() {
+					return setRawStatus(mailPath, 'no');
+				})
+				.then(function() {
 					return setAttachmentStatus(mailPath, hasAttachments ? 'no' : 'yes');
+				})
+				.then(function() {
+					return enqueue('saveRaw', connection);
 				})
 				.then(function() {
 					return enqueue('parseMail', connection);
@@ -381,6 +401,55 @@ start()
 
 			break;
 
+			case 'saveRaw':
+
+			var connection = data;
+			var mailPath = connection.tmpPath;
+
+			var filename = crypto.createHash('md5').update(mailPath).digest("hex");
+
+			var uploadRawStream = function(mailPath, filename) {
+				return new Promise(function(resolve, reject) {
+					fs.statAsync(mailPath)
+					.then(function(stats) {
+						var headers = {
+							'Content-Length': stats.size,
+							'Content-Type': 'text/plain'
+						};
+
+						var fileStream = fs.createReadStream(mailPath);
+
+						fileStream.on('error', function(e) {
+							log.error({ message: 'Create read stream in saveRaw throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
+							return reject(e);
+						})
+
+						s3.putStream(fileStream, '/raw/' + filename, headers, function(err, res) {
+							if (err) {
+								return reject(err);
+							}
+							return resolve();
+						})
+					})
+					.catch(function(e) {
+						return reject(e);
+					})
+				});
+			}
+
+			return uploadRawStream(mailPath, filename)
+			.then(function() {
+				return setRawStatus(mailPath, 'yes');
+			})
+			.then(function() {
+				return callback();
+			})
+			.catch(function(e) {
+				return callback(e);
+			})
+
+			break;
+
 			case 'uploadSingleAttachment':
 
 			var connection = data.connection;
@@ -462,9 +531,10 @@ start()
 
 			return Promise.join(
 				getParseStatus(mailPath),
+				getRawStatus(mailPath),
 				getAttachmentStatus(mailPath),
-				function(parse, attachment) {
-					if (parse === 'yes' && attachment === 'yes') {
+				function(parse, raw, attachment) {
+					if (parse === 'yes' && raw === 'yes' && attachment === 'yes') {
 						return fs.unlinkAsync(mailPath)
 						.then(function() {
 							return getGarbageKeys(mailPath);
@@ -481,7 +551,7 @@ start()
 							return callback(e);
 						})
 					}else{
-						return callback(new Error('Waiting for parse and upload to finish'));
+						return callback(new Error('Waiting for parse, raw, and upload to finish'));
 					}
 				}
 			)
