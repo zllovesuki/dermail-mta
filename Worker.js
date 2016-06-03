@@ -333,7 +333,7 @@ start()
 					mail.dkim = dkimResults;
 
 					var mailFrom = connection.envelope.mailFrom.address;
-					var domain = mailFrom.substring(recpTo.lastIndexOf("@") + 1).toLowerCase();
+					var domain = mailFrom.substring(mailFrom.lastIndexOf("@") + 1).toLowerCase();
 
 					var spf = new SPF();
 
