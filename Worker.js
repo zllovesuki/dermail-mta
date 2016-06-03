@@ -331,7 +331,10 @@ start()
 						putInMail = auth_results();
 					}
 
+					results = results || [];
 					mail.authentication_results = putInMail;
+					mail.dkim = results;
+
 					actual(mail);
 				});
 
