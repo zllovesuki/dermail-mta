@@ -357,7 +357,7 @@ start()
 
 				var verifier = new dkim.DKIMVerifyStream(dkimCallback);
 
-				dkimStream.pipe(verifier);
+				dkimStream.pipe(verifier, { line_endings: '\r\n' });
 			});
 
 			var readStream = fs.createReadStream(mailPath);
