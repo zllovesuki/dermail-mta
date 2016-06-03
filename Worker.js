@@ -11,6 +11,7 @@ var _ = require('lodash'),
 	fs = Promise.promisifyAll(require('fs')),
 	bunyan = require('bunyan'),
 	stream = require('gelf-stream'),
+	dkim = require('dkim-verify'),
 	log;
 
 Promise.promisifyAll(redis.RedisClient.prototype);
@@ -255,8 +256,7 @@ start()
 				streamAttachments: true
 			});
 
-			mailParser.on('end', function (mail) {
-
+			var actual = function(dkim, mail) {
 				// dermail-smtp-inbound parseMailStream()
 
 				if (!mail.text && !mail.html) {
@@ -270,13 +270,12 @@ start()
 
 				// dermail-smtp-inbound processMail();
 
+				mail.dkim = dkim;
 				mail.connection = connection;
 				mail.cc = mail.cc || [];
 				mail.attachments = mail.attachments || [];
 				mail.envelopeFrom = connection.envelope.mailFrom;
 				mail.envelopeTo = connection.envelope.rcptTo;
-				mail._date = _.clone(mail.date);
-				mail.date = new Date().toISOString(); // Server time as received time
 
 				return enqueue('storeMail', mail)
 				.then(function() {
@@ -289,6 +288,30 @@ start()
 				.catch(function(e) {
 					return callback(e);
 				})
+			}
+
+			mailParser.on('end', function (mail) {
+
+				mail._date = _.clone(mail.date);
+				mail.date = new Date().toISOString(); // Server time as received time
+
+				var dkimStream = fs.createReadStream(mailPath);
+
+				dkimStream.on('error', function(e) {
+					log.error({ message: 'Create dkimStream in parseMail throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
+					return callback(e);
+				})
+
+				var verify = new dkim();
+				verify.on('end', function(results) {
+					actual(results, mail);
+				})
+
+				verify.on('error', function(error) {
+					actual(results, mail);
+				})
+
+				dkimStream.pipe(verify);
 			});
 
 			var readStream = fs.createReadStream(mailPath);
