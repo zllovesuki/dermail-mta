@@ -1,5 +1,5 @@
 var os = require('os'),
-_ = require('lodash'),
+	_ = require('lodash'),
 	crypto = require('crypto'),
 	Queue = require('bull'),
 	knox = require('knox'),
@@ -12,9 +12,13 @@ _ = require('lodash'),
 	fs = Promise.promisifyAll(require('fs')),
 	bunyan = require('bunyan'),
 	stream = require('gelf-stream'),
-	dkim = require('./haraka_dkim'),
+	dkim = require('./haraka/dkim.js'),
+	SPF = require('./haraka/spf.js').SPF,
 	hostname = os.hostname(),
 	log;
+
+console.log(require('./haraka/spf.js'));
+console.log(require('./haraka/spf.js').SPF);
 
 Promise.promisifyAll(redis.RedisClient.prototype);
 
@@ -314,13 +318,10 @@ start()
 					return callback(e);
 				})
 
-				var verifier = new dkim.DKIMVerifyStream(function(err, result, results) {
-					var putInMail;
-					if (err) {
-						// No DKIM-Signature found;
-						putInMail = null;
-					}
-					if (results) {
+				var dkimCallback = function(err, result, dkimResults) {
+					var putInMail = null;
+
+					if (dkimResults) {
 						results.forEach(function (res) {
 							auth_results(
 								'dkim=' + res.result +
@@ -331,12 +332,33 @@ start()
 						putInMail = auth_results();
 					}
 
-					results = results || [];
-					mail.authentication_results = putInMail;
-					mail.dkim = results;
+					dkimResults = dkimResults || [];
+					mail.dkim = dkimResults;
 
-					actual(mail);
-				});
+					var recpTo = connection.envelope.rcptTo[0].address;
+					var domain = recpTo.substring(recpTo.lastIndexOf("@") + 1).toLowerCase();
+
+					var spf = new SPF();
+
+					spf.helo = connection.remoteAddress;
+
+					spf.check_host(connection.remoteAddress, domain, connection.envelope.mailFrom.address, function(err, result) {
+
+						if (!err) {
+							auth_result = spf.result(result).toLowerCase();
+							auth_results( "spf="+auth_result+" smtp.mailfrom="+domain);
+							putInMail = auth_results();
+							mail.spf = auth_result;
+						}
+
+						mail.authentication_results = putInMail;
+
+						actual(mail);
+					})
+
+				}
+
+				var verifier = new dkim.DKIMVerifyStream(dkimCallback);
 
 				dkimStream.pipe(verifier);
 			});
