@@ -37,20 +37,13 @@ function Buf() {
 	};
 }
 
-function compareBuf(buf1, buf2) {
-	for (var i = 0; i < buf1.length; i++) {
-		if (!buf2[i] || buf1[i] !== buf2[i]) return false;
-	}
-	return true;
-}
-
 function indexOfLF(boundary, buf, maxlength) {
 	for (var i = 0; i < buf.length; i++) {
 		if (maxlength && (i === maxlength)) break;
 		if (buf[i] === 0x0a) return i;
 	}
 	if (boundary !== null) {
-		if (compareBuf(buf, new Buffer('--' + boundary + '--'))) {
+		if (buf.compare(new Buffer('--' + boundary + '--')) === 0) {
 			return null;
 		}
 	}
