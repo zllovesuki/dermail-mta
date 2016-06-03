@@ -332,14 +332,14 @@ start()
 					dkimResults = dkimResults || [];
 					mail.dkim = dkimResults;
 
-					var recpTo = connection.envelope.rcptTo[0].address;
-					var domain = recpTo.substring(recpTo.lastIndexOf("@") + 1).toLowerCase();
+					var mailFrom = connection.envelope.mailFrom.address;
+					var domain = mailFrom.substring(recpTo.lastIndexOf("@") + 1).toLowerCase();
 
 					var spf = new SPF();
 
 					spf.helo = connection.remoteAddress;
 
-					spf.check_host(connection.remoteAddress, domain, connection.envelope.mailFrom.address, function(err, result) {
+					spf.check_host(connection.remoteAddress, domain, mailFrom, function(err, result) {
 
 						if (!err) {
 							auth_result = spf.result(result).toLowerCase();
