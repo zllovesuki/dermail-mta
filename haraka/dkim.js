@@ -37,10 +37,22 @@ function Buf() {
 	};
 }
 
-function indexOfLF(buf, maxlength) {
+function compareBuf(buf1, buf2) {
+	for (var i = 0; i < buf1.length; i++) {
+		if (!buf2[i] || buf1[i] !== buf2[i]) return false;
+	}
+	return true;
+}
+
+function indexOfLF(boundary, buf, maxlength) {
 	for (var i = 0; i < buf.length; i++) {
 		if (maxlength && (i === maxlength)) break;
 		if (buf[i] === 0x0a) return i;
+	}
+	if (boundary !== null) {
+		if (compareBuf(buf, new Buffer('--' + boundary + '--'))) {
+			return null;
+		}
 	}
 	return -1;
 };
@@ -186,7 +198,7 @@ DKIMObject.prototype.add_body_line = function(line) {
 			}
 			this.bh.update(l);
 		} else if (this.bodycanon === 'relaxed') {
-			l = this.line_buffer.pop(line).toString('binary');
+			l = this.line_buffer.pop(line).toString('utf-8');
 			l = l.replace(/[\t ]+(\r?\n)$/, "$1");
 			l = l.replace(/[\t ]+/g, ' ');
 			l = this.line_buffer.pop(new Buffer(l));
@@ -384,6 +396,8 @@ function DKIMVerifyStream(cb, timeout) {
 	this.pending = 0;
 	this.writable = true;
 	this.timeout = timeout || 30;
+	this.boundaryFound = false;
+	this.boundary = null;
 }
 util.inherits(DKIMVerifyStream, Stream);
 DKIMVerifyStream.prototype.debug = function(str) {
@@ -422,7 +436,14 @@ DKIMVerifyStream.prototype.handle_buf = function(buf) {
 	};
 	// Process input buffer into lines
 	var offset = 0;
-	while ((offset = indexOfLF(buf)) !== -1) {
+	var once = false;
+	while ((offset = indexOfLF(this.boundary, buf)) !== -1) {
+		if (offset === null) {
+			once = true;
+			// reached the end
+			offset = buf.length + 1;
+			buf = Buffer.concat([buf, new Buffer('\r\n\r\n')]);
+		}
 		var line = buf.slice(0, offset + 1);
 		if (buf.length > offset) {
 			buf = buf.slice(offset + 1);
@@ -467,20 +488,31 @@ DKIMVerifyStream.prototype.handle_buf = function(buf) {
 			// Parse headers
 			if (line[0] === 0x20 || line[0] === 0x09) {
 				// Header continuation
-				this.headers[this.headers.length - 1] += line.toString('ascii');
+				this.headers[this.headers.length - 1] += line.toString('utf-8');
 			} else {
-				this.headers.push(line.toString('ascii'));
+				this.headers.push(line.toString('utf-8'));
 			}
 		} else {
 			for (var e = 0; e < this.dkim_objects.length; e++) {
 				this.dkim_objects[e].add_body_line(line);
 			}
 		}
+		if (once) {
+			break;
+		}
 	}
 	this.buffer.push(buf);
 	return true;
 };
 DKIMVerifyStream.prototype.write = function(buf) {
+	if (!this.boundaryFound) {
+		var m = buf.toString('utf-8').match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+		if (m) {
+			this.boundaryFound = true;
+			this.boundary = m[1] || m[2];
+			this.boundary = this.boundary.split("\r\n")[0]
+		}
+	}
 	return this.handle_buf(buf);
 };
 DKIMVerifyStream.prototype.end = function(buf) {
