@@ -308,7 +308,7 @@ start()
 				})
 
 				verify.on('error', function(error) {
-					actual(results, mail);
+					actual(error, mail);
 				})
 
 				dkimStream.pipe(verify);
