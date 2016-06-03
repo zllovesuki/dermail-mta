@@ -319,7 +319,7 @@ start()
 					var putInMail = null;
 
 					if (dkimResults) {
-						results.forEach(function (res) {
+						dkimResults.forEach(function (res) {
 							auth_results(
 								'dkim=' + res.result +
 								((res.error) ? ' (' + res.error + ')' : '') +
