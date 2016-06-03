@@ -1,4 +1,5 @@
-var _ = require('lodash'),
+var os = require('os'),
+_ = require('lodash'),
 	crypto = require('crypto'),
 	Queue = require('bull'),
 	knox = require('knox'),
@@ -11,7 +12,8 @@ var _ = require('lodash'),
 	fs = Promise.promisifyAll(require('fs')),
 	bunyan = require('bunyan'),
 	stream = require('gelf-stream'),
-	dkim = require('dkim-verify'),
+	dkim = require('./haraka_dkim'),
+	hostname = os.hostname(),
 	log;
 
 Promise.promisifyAll(redis.RedisClient.prototype);
@@ -255,8 +257,19 @@ start()
 			var mailParser = new MailParser({
 				streamAttachments: true
 			});
+			var authentication_results = [];
 
-			var actual = function(dkim, mail) {
+			var auth_results = function (message) {
+			    if (message) {
+					authentication_results.push(message);
+				}
+			    var header = [ hostname ];
+			    header = header.concat(authentication_results);
+			    if (header.length === 1) return '';  // no results
+			    return header.join('; ');
+			};
+
+			var actual = function(mail) {
 				// dermail-smtp-inbound parseMailStream()
 
 				if (!mail.text && !mail.html) {
@@ -270,7 +283,6 @@ start()
 
 				// dermail-smtp-inbound processMail();
 
-				mail.dkim = dkim;
 				mail.connection = connection;
 				mail.cc = mail.cc || [];
 				mail.attachments = mail.attachments || [];
@@ -302,16 +314,28 @@ start()
 					return callback(e);
 				})
 
-				var verify = new dkim();
-				verify.on('end', function(results) {
-					actual(results, mail);
-				})
+				var verifier = new dkim.DKIMVerifyStream(function(err, result, results) {
+					var putInMail;
+					if (err) {
+						// No DKIM-Signature found;
+						putInMail = null;
+					}
+					if (results) {
+						results.forEach(function (res) {
+							auth_results(
+								'dkim=' + res.result +
+								((res.error) ? ' (' + res.error + ')' : '') +
+								' header.i=' + res.identity
+							);
+						});
+						putInMail = auth_results();
+					}
 
-				verify.on('error', function(error) {
-					actual(error, mail);
-				})
+					mail.authentication_results = putInMail;
+					actual(mail);
+				});
 
-				dkimStream.pipe(verify);
+				dkimStream.pipe(verifier);
 			});
 
 			var readStream = fs.createReadStream(mailPath);
