@@ -17,9 +17,6 @@ var os = require('os'),
 	hostname = os.hostname(),
 	log;
 
-console.log(require('./haraka/spf.js'));
-console.log(require('./haraka/spf.js').SPF);
-
 Promise.promisifyAll(redis.RedisClient.prototype);
 
 var messageQ = new Queue('dermail-mta', config.redisQ.port, config.redisQ.host);
