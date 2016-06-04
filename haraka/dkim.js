@@ -386,9 +386,10 @@ DKIMVerifyStream.prototype.handle_buf = function(buf) {
 	}
 	var once = false;
 	if (buf === null) {
+		if (this.buffer.blen === 0) return true;
 		once = true;
 		buf = this.buffer.pop();
-		if (!!buf && buf[buf.length - 2] === 0x0d && buf[buf.length - 1] === 0x0a) {
+		if (buf[buf.length - 2] === 0x0d && buf[buf.length - 1] === 0x0a) {
 			return true;
 		}
 		buf = Buffer.concat([buf, new Buffer('\r\n\r\n')]);
