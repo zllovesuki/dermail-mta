@@ -43,7 +43,7 @@ function indexOfLF(boundary, buf, maxlength) {
 		if (buf[i] === 0x0a) return i;
 	}
 	if (boundary !== null) {
-		if (buf.compare(new Buffer('--' + boundary + '--')) === 0) {
+		if (buf.compare(boundary) === 0) {
 			return null;
 		}
 	}
@@ -502,8 +502,9 @@ DKIMVerifyStream.prototype.write = function(buf) {
 		var m = buf.toString('utf-8').match(/boundary=(?:"([^"]+)"|([^;]+))/i);
 		if (m) {
 			this.boundaryFound = true;
-			this.boundary = m[1] || m[2];
-			this.boundary = this.boundary.split("\r\n")[0]
+			var boundary = m[1] || m[2];
+			boundary = boundary.split("\r\n")[0]
+			this.boundary = new Buffer('--' + boundary + '--');
 		}
 	}
 	return this.handle_buf(buf);
