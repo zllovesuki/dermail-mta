@@ -384,6 +384,7 @@ DKIMVerifyStream.prototype.handle_buf = function(buf) {
 	if (this._in_body && this._no_signatures_found) {
 		return true;
 	}
+	var once = false;
 	if (buf === null) {
 		once = true;
 		buf = this.buffer.pop();
@@ -419,7 +420,6 @@ DKIMVerifyStream.prototype.handle_buf = function(buf) {
 	};
 	// Process input buffer into lines
 	var offset = 0;
-	var once = false;
 	while ((offset = indexOfLF(buf)) !== -1) {
 		var line = buf.slice(0, offset + 1);
 		if (buf.length > offset) {
