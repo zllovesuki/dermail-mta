@@ -60,14 +60,13 @@ function DKIMObject(header, header_idx, cb, timeout) {
 	this.signed_headers = [];
 	this.identity = 'unknown';
 	this.line_buffer = new Buf();
-	this.last2octets = new Buffer(2);
 	this.dns_fields = {
 		'v': 'DKIM1',
 		'k': 'rsa',
 		'g': '*',
 	};
 	var m = /^([^:]+):\s*((?:.|[\r\n])*)$/.exec(header);
-	var sig = m[2].trim().replace(/\s+/, '');
+	var sig = m[2].trim().replace(/\s+/g, '');
 	var keys = sig.split(';');
 	for (var k = 0; k < keys.length; k++) {
 		var key = keys[k].trim();
@@ -180,10 +179,6 @@ DKIMObject.prototype.add_body_line = function(line) {
 		var l;
 		if (this.bodycanon === 'simple') {
 			l = this.line_buffer.pop(line);
-			if (l.length >= 2) {
-				this.last2octets[0] = l[l.length - 2];
-				this.last2octets[1] = l[l.length - 1];
-			}
 			this.bh.update(l);
 		} else if (this.bodycanon === 'relaxed') {
 			l = this.line_buffer.pop(line).toString('utf-8');
@@ -206,13 +201,6 @@ DKIMObject.prototype.result = function(error, result) {
 };
 DKIMObject.prototype.end = function() {
 	if (this.run_cb) return;
-	if (this.bodycanon === 'simple') {
-		// Add CRLF if there was no body or no trailing CRLF
-		if (!(this.last2octets[0] === 0x0d && this.last2octets[1] === 0x0a)) {
-			this.debug(this.identity + ': adding CRLF for simple body canonicalization');
-			this.bh.update(new Buffer("\r\n"));
-		}
-	}
 	var bh = this.bh.digest('base64');
 	this.debug(this.identity + ':' + ' bodyhash=' + this.fields.bh + ' computed=' + bh);
 	if (bh !== this.fields.bh) {
