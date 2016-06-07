@@ -44,6 +44,10 @@ function indexOfLF(buf, maxlength) {
 	}
 	return -1;
 };
+
+function cloneHack(object) {
+	return JSON.parse(JSON.stringify(object));
+}
 ////////////////
 // DKIMObject //
 ////////////////
@@ -53,7 +57,7 @@ function DKIMObject(header, header_idx, cb, timeout) {
 	this.sig = header;
 	this.sig_md5 = md5(header);
 	this.run_cb = false;
-	this.header_idx = header_idx;
+	this.header_idx = cloneHack(header_idx);
 	this.timeout = timeout;
 	this.fields = {};
 	this.headercanon = this.bodycanon = 'simple';
