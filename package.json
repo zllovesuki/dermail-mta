@@ -13,17 +13,17 @@
   "author": "Jerry Chen <me@jerrychen.me>",
   "license": "GPL-3.0",
   "dependencies": {
-    "bluebird": "^3.3.3",
-    "bull": "^0.7.0",
+    "bluebird": "^3.4.0",
+    "bull": "^1.0.0-rc3",
     "bunyan": "^1.8.1",
     "dermail-smtp-inbound": "git+https://git.fm/zllovesuki/dermail-smtp-inbound.git",
     "gelf-stream": "git+https://github.com/zllovesuki/gelf-stream.git",
     "html-to-text": "^2.1.0",
     "ipaddr.js": "^1.1.1",
     "knox": "^0.9.2",
-    "lodash": "^4.3.0",
-    "mailparser": "^0.5.3",
-    "redis": "^2.6.0-2",
-    "superagent": "^1.7.2"
+    "lodash": "^4.13.1",
+    "mailparser": "^0.6.0",
+    "redis": "^2.6.2",
+    "superagent": "^2.0.0"
   }
 }
