@@ -337,8 +337,6 @@ start()
 
 					var spf = new SPF();
 
-					spf.helo = connection.remoteAddress;
-
 					spf.check_host(connection.remoteAddress, domain, mailFrom, function(err, result) {
 
 						if (!err) {
