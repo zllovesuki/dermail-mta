@@ -61,11 +61,11 @@ var start = function() {
 }
 
 var getRawKey = function(path) {
-	return path + ':raw';
+	return path + '-mta:raw';
 }
 
 var getAttachmentKey = function(path) {
-	return path + ':attachment';
+	return path + '-mta:attachment';
 }
 
 var getSingleAttachmentKey = function(path, filename) {
@@ -100,7 +100,7 @@ var getAttachmentStatus = function(path) {
 
 var getGarbageKeys = function(path) {
 	log.debug({ message: 'getGarbageKeys', path: path });
-	return redisStore.keysAsync(path + ':*')
+	return redisStore.keysAsync(path + '-mta:*')
 }
 
 var getSingleAttachmentStatus = function(path, filename) {
