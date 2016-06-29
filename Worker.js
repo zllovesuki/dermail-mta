@@ -7,14 +7,11 @@ var os = require('os'),
 	config = require('./config'),
 	Promise = require('bluebird'),
 	MailParser = require('mailparser').MailParser,
-	helper = require('./helper'),
 	request = require('superagent'),
 	fs = Promise.promisifyAll(require('fs')),
 	bunyan = require('bunyan'),
 	stream = require('gelf-stream'),
-	dkim = require('./haraka/dkim.js'),
-	SPF = require('./haraka/spf.js').SPF,
-	hostname = os.hostname(),
+	receivedBy = os.hostname(),
 	log;
 
 Promise.promisifyAll(redis.RedisClient.prototype);
@@ -63,10 +60,6 @@ var start = function() {
 	});
 }
 
-var getParseKey = function(path) {
-	return path + ':parse';
-}
-
 var getRawKey = function(path) {
 	return path + ':raw';
 }
@@ -77,16 +70,6 @@ var getAttachmentKey = function(path) {
 
 var getSingleAttachmentKey = function(path, filename) {
 	return path + ':attachment:' + filename;
-}
-
-var setParseStatus = function(path, status) {
-	log.debug({ message: 'setParseStatus', path: path, status:status });
-	return redisStore.setAsync(getParseKey(path), status)
-}
-
-var getParseStatus = function(path) {
-	log.debug({ message: 'getParseStatus', path: path });
-	return redisStore.getAsync(getParseKey(path));
 }
 
 var setRawStatus = function(path, status) {
@@ -178,6 +161,8 @@ start()
 					hasAttachments = true;
 				}
 
+				connection.receivedBy = receivedBy;
+
 				// This is ideal
 				/*return Promise.all([
 					setParseStatus(mailPath, task.parseDone),
@@ -194,7 +179,7 @@ start()
 				});*/
 
 				// But if we can't set redis for status, we want to abort early
-				return setParseStatus(mailPath, 'no')
+				return setRawStatus(mailPath, 'no')
 				.then(function() {
 					if (!hasAttachments) return
 					return Promise.map(mail.attachments, function(attachment) {
@@ -206,16 +191,10 @@ start()
 					}, { concurrency: 3 })
 				})
 				.then(function() {
-					return setRawStatus(mailPath, 'no');
-				})
-				.then(function() {
 					return setAttachmentStatus(mailPath, hasAttachments ? 'no' : 'yes');
 				})
 				.then(function() {
 					return enqueue('saveRaw', connection);
-				})
-				.then(function() {
-					return enqueue('parseMail', connection);
 				})
 				.then(function() {
 					if (!hasAttachments) return;
@@ -251,143 +230,17 @@ start()
 
 			break;
 
-			case 'parseMail':
-
-			var connection = data;
-			var mailPath = connection.tmpPath;
-			var mailParser = new MailParser({
-				streamAttachments: true
-			});
-			var authentication_results = [];
-
-			var auth_results = function (message) {
-			    if (message) {
-					authentication_results.push(message);
-				}
-			    var header = [ hostname ];
-			    header = header.concat(authentication_results);
-			    if (header.length === 1) return '';  // no results
-			    return header.join('; ');
-			};
-
-			var actual = function(mail) {
-				// dermail-smtp-inbound parseMailStream()
-
-				if (!mail.text && !mail.html) {
-					mail.text = '';
-					mail.html = '<div></div>';
-				} else if (!mail.html) {
-					mail.html = helper.convertTextToHtml(mail.text);
-				} else if (!mail.text) {
-					mail.text = helper.convertHtmlToText(mail.html);
-				}
-
-				// dermail-smtp-inbound processMail();
-
-				mail.connection = connection;
-				mail.cc = mail.cc || [];
-				mail.attachments = mail.attachments || [];
-				mail.envelopeFrom = connection.envelope.mailFrom;
-				mail.envelopeTo = connection.envelope.rcptTo;
-
-				return enqueue('storeMail', mail)
-				.then(function() {
-					// Tell the garbage collector that "parsing" is done
-					return setParseStatus(mailPath, 'yes');
-				})
-				.then(function() {
-					return callback();
-				})
-				.catch(function(e) {
-					return callback(e);
-				})
-			}
-
-			mailParser.on('end', function (mail) {
-
-				mail._date = _.clone(mail.date);
-				mail.date = new Date().toISOString(); // Server time as received time
-
-				var dkimStream = fs.createReadStream(mailPath);
-
-				dkimStream.on('error', function(e) {
-					log.error({ message: 'Create dkimStream in parseMail throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
-					return callback(e);
-				})
-
-				var dkimCallback = function(err, result, dkimResults) {
-					var putInMail = null;
-
-					if (dkimResults) {
-						dkimResults.forEach(function (res) {
-							auth_results(
-								'dkim=' + res.result +
-								((res.error) ? ' (' + res.error + ')' : '') +
-								' header.i=' + res.identity
-							);
-						});
-						putInMail = auth_results();
-					}
-
-					dkimResults = dkimResults || [];
-					mail.dkim = dkimResults;
-
-					var mailFrom = connection.envelope.mailFrom.address;
-					var domain = mailFrom.substring(mailFrom.lastIndexOf("@") + 1).toLowerCase();
-
-					var spf = new SPF();
-
-					spf.check_host(connection.remoteAddress, domain, mailFrom, function(err, result) {
-
-						if (!err) {
-							auth_result = spf.result(result).toLowerCase();
-							auth_results( "spf="+auth_result+" smtp.mailfrom="+domain);
-							putInMail = auth_results();
-							mail.spf = auth_result;
-						}
-
-						mail.authentication_results = putInMail;
-
-						actual(mail);
-					})
-
-				}
-
-				var verifier = new dkim.DKIMVerifyStream(dkimCallback);
-
-				dkimStream.pipe(verifier, { line_endings: '\r\n' });
-			});
-
-			var readStream = fs.createReadStream(mailPath);
-
-			readStream.on('error', function(e) {
-				log.error({ message: 'Create read stream in parseMail throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
-				return callback(e);
-			})
-
-			readStream.pipe(mailParser);
-
-			break;
-
 			case 'storeMail':
 
-			var mail = data;
-			mail.remoteSecret = config.remoteSecret;
+			var connection = data;
+			connection.remoteSecret = config.remoteSecret;
 
-			// Extra data to help with remote debugging
-			mail.MTAExtra = {
-				attemptsMade: job.attemptsMade,
-				maxAttempts: job.attempts,
-				delay: job.delay,
-				jobId: job.jobId
-			};
-
-			var store = function(message) {
+			var store = function(payload) {
 				return new Promise(function(resolve, reject) {
 					request
 					.post(config.rx.hook())
 					.timeout(10000)
-					.send(message)
+					.send(payload)
 					.set('Accept', 'application/json')
 					.end(function(err, res){
 						if (err) {
@@ -402,7 +255,7 @@ start()
 				});
 			}
 
-			return store(mail)
+			return store(connection)
 			.then(function() {
 				return callback();
 			})
@@ -509,6 +362,9 @@ start()
 				return setRawStatus(mailPath, 'yes');
 			})
 			.then(function() {
+				return enqueue('storeMail', connection)
+			})
+			.then(function() {
 				return callback();
 			})
 			.catch(function(e) {
@@ -597,11 +453,10 @@ start()
 			var mailPath = connection.tmpPath;
 
 			return Promise.join(
-				getParseStatus(mailPath),
 				getRawStatus(mailPath),
 				getAttachmentStatus(mailPath),
-				function(parse, raw, attachment) {
-					if (parse === 'yes' && raw === 'yes' && attachment === 'yes') {
+				function(raw, attachment) {
+					if (raw === 'yes' && attachment === 'yes') {
 						return fs.unlinkAsync(mailPath)
 						.then(function() {
 							return getGarbageKeys(mailPath);
@@ -618,7 +473,7 @@ start()
 							return callback(e);
 						})
 					}else{
-						return callback(new Error('Waiting for parse, raw, and upload to finish'));
+						return callback(new Error('Waiting for raw, and upload to finish'));
 					}
 				}
 			)

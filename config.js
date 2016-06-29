@@ -23,7 +23,7 @@ var self = module.exports = {
 			return self.apiEndpoint() + '/rx/get-s3';
 		},
 		hook: function() {
-			return self.apiEndpoint() + '/rx/store';
+			return self.apiEndpoint() + '/rx/process-from-raw';
 		},
 		checkRecipient: function() {
 			return self.apiEndpoint() + '/rx/check-recipient';
