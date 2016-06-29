@@ -1,5 +1,8 @@
 ### Changelog
 
+06/28/2016: 3.x -> 4.0.0
+1. Mails are now processed at API instead of at MTA. Please make sure that S3 is setup correctly, and you are running dermail-api version 3.0.0+
+
 06/02/2016: 3.1.x -> 3.2.0
 1. MTA will now verify DKIM Signature if it exists
 

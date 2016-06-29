@@ -13,7 +13,7 @@ var os = require('os'),
 	stream = require('gelf-stream'),
 	dkim = require('./haraka/dkim.js'),
 	SPF = require('./haraka/spf.js').SPF,
-	hostname = os.hostname(),
+	receivedBy = os.hostname(),
 	log;
 
 Promise.promisifyAll(redis.RedisClient.prototype);
@@ -162,6 +162,8 @@ start()
 				if (typeof mail.attachments !== 'undefined') {
 					hasAttachments = true;
 				}
+
+				connection.receivedBy = receivedBy;
 
 				// This is ideal
 				/*return Promise.all([
@@ -473,7 +475,7 @@ start()
 							return callback(e);
 						})
 					}else{
-						return callback(new Error('Waiting for parse, raw, and upload to finish'));
+						return callback(new Error('Waiting for raw, and upload to finish'));
 					}
 				}
 			)
