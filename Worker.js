@@ -11,8 +11,6 @@ var os = require('os'),
 	fs = Promise.promisifyAll(require('fs')),
 	bunyan = require('bunyan'),
 	stream = require('gelf-stream'),
-	dkim = require('./haraka/dkim.js'),
-	SPF = require('./haraka/spf.js').SPF,
 	receivedBy = os.hostname(),
 	log;
 
