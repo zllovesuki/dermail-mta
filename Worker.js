@@ -38,9 +38,8 @@ var start = function() {
 		request
 		.post(config.rx.s3())
 		.timeout(10000)
-		.send({
-			remoteSecret: config.remoteSecret
-		})
+		.set('X-remoteSecret', config.remoteSecret)
+		.send({})
 		.set('Accept', 'application/json')
 		.end(function(err, res){
 			if (err) {
@@ -233,13 +232,13 @@ start()
 			case 'storeMail':
 
 			var connection = data;
-			connection.remoteSecret = config.remoteSecret;
 
 			var store = function(payload) {
 				return new Promise(function(resolve, reject) {
 					request
 					.post(config.rx.hook())
 					.timeout(10000)
+					.set('X-remoteSecret', config.remoteSecret)
 					.send(payload)
 					.set('Accept', 'application/json')
 					.end(function(err, res){

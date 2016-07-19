@@ -35,9 +35,9 @@ var validateRecipient = function(email, envelope) {
 		return request
 		.post(config.rx.checkRecipient())
 		.timeout(5000)
+		.set('X-remoteSecret', config.remoteSecret)
 		.send({
-			to: email,
-			remoteSecret: config.remoteSecret
+			to: email
 		})
 		.set('Accept', 'application/json')
 		.end(function(err, res){
