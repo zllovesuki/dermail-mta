@@ -155,6 +155,12 @@ start()
 
 			var hasAttachments = false;
 
+            mailParser.on('error', function(e) {
+                // Probably errors related to "Error: Encoding not recognized"
+                log.error({ message: 'MailParser stream throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
+                return callback(e);
+            });
+
 			mailParser.on('end', function (mail) {
 				if (typeof mail.attachments !== 'undefined') {
 					hasAttachments = true;
