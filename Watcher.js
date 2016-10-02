@@ -24,8 +24,8 @@ pm2.connect(function(err) {
         log.error('Cannot connect to pm2 daemon');
     }
     log.info('Process ' + process.pid + ' is running to watch for let\'s encrypt cert changes.')
-    fs.watch('/etc/letencrypt/live/' + letsencrypt, function(event, filename) {
-        log.info('/etc/letencrypt/live/' + letsencrypt, 'changes detected, restarting MTA...')
+    fs.watch('/etc/letsencrypt/live/' + letsencrypt, function(event, filename) {
+        log.info('/etc/letsencrypt/live/' + letsencrypt, 'changes detected, restarting MTA...')
         pm2.restart('MTA', function(proc, err) {
             if (err) {
                 log.error('Cannot restart MTA.')

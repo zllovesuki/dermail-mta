@@ -131,8 +131,8 @@ MTA.start({
 		size: config.mailSizeLimit || 52428800, // Default 50 MB message limit
 		// Notice that this is the ENTIRE email. Headers, body, attachments, etc.
 		banner: 'Dermail.net, by sdapi.net',
-		key: fs.readFileSync('/etc/letencrypt/live/' + letsencrypt + '/privkey.pem'),
-		cert: fs.readFileSync('/etc/letencrypt/live/' + letsencrypt + '/fullchain.pem')
+		key: fs.readFileSync('/etc/letsencrypt/live/' + letsencrypt + '/privkey.pem'),
+		cert: fs.readFileSync('/etc/letsencrypt/live/' + letsencrypt + '/fullchain.pem')
 	}
 });
 
