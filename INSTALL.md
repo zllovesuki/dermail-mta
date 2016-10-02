@@ -11,9 +11,10 @@ Before your installation of MTA, make sure that you have completed the check lis
 ### Setup MTA
 
 1. `npm install` and `npm install pm2 -g`
-2. You need to have a BIND running locally for the SPAMHAUS Zen queries. This can be done by running the `BIND.sh` if you are running on Debian
-3. Setup up Let's Encrypt's `certbot`. Refers to https://certbot.eff.org for instructions on your OS. Make sure that you select "none of the above" for the webserver as this is for SMTP.
-4. Configure MTA with a `config.json` file
+2. Install `redis` for the persistence
+3. You need to have a BIND running locally for the SPAMHAUS Zen queries. This can be done by running the `BIND.sh` if you are running on Debian
+4. Setup up Let's Encrypt's `certbot`. Refers to https://certbot.eff.org for instructions on your OS. Make sure that you select "none of the above" for the webserver as this is for SMTP.
+5. Configure MTA with a `config.json` file
     ```json
     {
             "redisQ":{
@@ -25,4 +26,4 @@ Before your installation of MTA, make sure that you have completed the check lis
             "letsencrypt": "[hostname of this machine/letencrypt domain]"
     }
     ```
-5. Start the MTA with `pm2 start app.json`
+6. Start the MTA with `pm2 start app.json`
