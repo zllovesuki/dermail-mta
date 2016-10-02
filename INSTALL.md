@@ -22,7 +22,7 @@ Before your installation of MTA, make sure that you have completed the check lis
             },
             "remoteSecret": "[remote secret set in API]",
             "apiEndpoint": "https://[api endpoint]",
-            "letencrypt": "[hostname of this machine/letencrypt domain]"
+            "letsencrypt": "[hostname of this machine/letencrypt domain]"
     }
     ```
 5. Start the MTA with `pm2 start app.json`

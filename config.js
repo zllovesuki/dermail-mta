@@ -13,7 +13,7 @@ var self = module.exports = {
 	tmpDir: require('./config.json').tmpDir,
 	mailSizeLimit: require('./config.json').mailSizeLimit,
 	remoteSecret: require('./config.json').remoteSecret,
-    letencrypt: require('./config.json').letencrypt,
+    letsencrypt: require('./config.json').letsencrypt,
 	apiEndpoint: function() {
 		var apiEndpoint = require('./config.json').apiEndpoint;
 		return apiEndpoint + '/v' + self.apiVersion;
