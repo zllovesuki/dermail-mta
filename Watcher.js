@@ -23,12 +23,15 @@ pm2.connect(function(err) {
     if (err) {
         log.error('Cannot connect to pm2 daemon');
     }
-    log.info('Process ' + process.pid + ' is running to watch for let\'s encrypt cert changes.')
-    fs.watch('/etc/letsencrypt/live/' + letsencrypt, function(event, filename) {
-        log.info('/etc/letsencrypt/live/' + letsencrypt, 'changes detected, restarting MTA...')
+    log.info('Process ' + process.pid + ' is running to watch for let\'s encrypt cert changes.');
+    fs.watchFile('/etc/letsencrypt/live/' + letsencrypt + '/fullchain.pem', {
+        persistent: true,
+        interval: 3600000
+    }, function(curr, prev) {
+        log.info('/etc/letsencrypt/live/' + letsencrypt + '/fullchain.pem', 'changes detected, restarting MTA...')
         pm2.restart('MTA', function(proc, err) {
             if (err) {
-                log.error('Cannot restart MTA.')
+                log.error('Cannot restart MTA.');
             }
         })
     })
