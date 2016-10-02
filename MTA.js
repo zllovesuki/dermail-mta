@@ -116,6 +116,8 @@ var validateConnection = function(connection) {
 	})
 }
 
+var letencrypt = config.letencrypt;
+
 MTA.start({
 	doNotParse: true,
 	port: process.env.PORT || 25,
@@ -129,8 +131,8 @@ MTA.start({
 		size: config.mailSizeLimit || 52428800, // Default 50 MB message limit
 		// Notice that this is the ENTIRE email. Headers, body, attachments, etc.
 		banner: 'Dermail.net, by sdapi.net',
-		key: fs.readFileSync(__dirname + '/ssl/key'),
-		cert: fs.readFileSync(__dirname + '/ssl/chain')
+		key: fs.readFileSync('/etc/letencrypt/live/' + letencrypt + '/privkey.pem'),
+		cert: fs.readFileSync('/etc/letencrypt/live/' + letencrypt + '/fullchain.pem')
 	}
 });
 
