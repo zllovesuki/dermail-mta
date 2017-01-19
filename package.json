@@ -1,6 +1,6 @@
 {
   "name": "dermail-mta",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "description": "Dermail MTA",
   "main": "index.js",
   "scripts": {
@@ -14,7 +14,7 @@
   "license": "GPL-3.0",
   "dependencies": {
     "bluebird": "^3.4.6",
-    "bull": "^1.0.0",
+    "bull": "^2.1.0",
     "bunyan": "^1.8.1",
     "dermail-smtp-inbound": "git+https://git.fm/zllovesuki/dermail-smtp-inbound.git",
     "gelf-stream": "git+https://github.com/zllovesuki/gelf-stream.git",
@@ -25,6 +25,6 @@
     "mailparser": "^0.6.1",
     "pm2": "^2.0.18",
     "redis": "^2.6.2",
-    "superagent": "^2.3.0"
+    "superagent": "^3.3.2"
   }
 }
