@@ -60,6 +60,7 @@ var validateSender = function(email, connection) {
             checkARecord(connection.remoteAddress, connection.hostNameAppearsAs)
         ]).spread(function(reverseValid, AValid) {
             if (reverseValid === true && AValid === true) {
+                log.info({ message: 'Connection accepted (valid hostname and mapping)', email: email, connection: connection });
                 return resolve();
             }else{
                 log.info({ message: 'Connection rejected (invalid IP-Domain mapping)', email: email, connection: connection });
@@ -149,13 +150,13 @@ var validateConnection = function(connection) {
 		var remoteAddress = connection.remoteAddress;
 		return spamhausZen(remoteAddress)
 		.then(function(rejection) {
-			log.info({ message: 'Connection rejected by Spamhaus', connection: connection });
+			log.info({ message: 'Connection rejected by Spamhaus', connection: connection, spamhaus: rejection });
             var error = new Error('Your IP is Blacklisted by Spamhaus');
             error.responseCode = 530;
 			return reject(error)
 		})
 		.catch(function(acceptance) {
-			log.info({ message: 'Connection accepted', connection: connection });
+			log.info({ message: 'Connection accepted (spamhaus ok)', connection: connection, spamhaus: acceptance });
 			return resolve();
 		})
 	})
