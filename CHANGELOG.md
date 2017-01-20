@@ -1,5 +1,8 @@
 ### Changelog
 
+01/20/2017: 4.x -> 4.3.0
+1. Greylisting is now enabled. dermail-api@4.4.0+ required
+
 06/28/2016: 3.x -> 4.0.0
 1. Mails are now processed at API instead of at MTA. Please make sure that S3 is setup correctly, and you are running dermail-api version 3.0.0+
 

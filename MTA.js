@@ -72,6 +72,32 @@ var validateSender = function(email, connection) {
     })
 }
 
+var checkGreylist = function(triplet) {
+    return new Promise(function(resolve, reject) {
+        return request
+        .post(config.rx.greylist())
+        .set('X-remoteSecret', config.remoteSecret)
+        .send(triplet)
+        .set('Accept', 'application/json')
+		.end(function(err, res){
+			if (err) {
+				// Service not available, we will let it slide
+				log.error({ message: 'Service (greylist) not available', error: err.response.body });
+				return resolve();
+			}
+			if (res.body.ok === true) {
+				log.info({ message: 'Recipient accepted (greylist)', triplet: triplet });
+				return resolve();
+			}else{
+				log.info({ message: 'Recipient temporaily rejected (greylist)', triplet: triplet });
+                var error = new Error('Greylisted: Please try again later')
+                error.responseCode = 451;
+                return reject(error)
+			}
+		});
+    });
+}
+
 var validateRecipient = function(email, connection) {
 	return new Promise(function(resolve, reject) {
 		return request
@@ -85,14 +111,18 @@ var validateRecipient = function(email, connection) {
 		.end(function(err, res){
 			if (err) {
 				// Service not available, we will let it slide
-				log.error({ message: 'Service not available', error: err.response.body });
+				log.error({ message: 'Service (recipient) not available', error: err.response.body });
 				return resolve();
 			}
 			if (res.body.ok === true) {
-				log.info({ message: 'Recipient accepted', email: email, connection: connection });
-				return resolve();
+				log.info({ message: 'Recipient accepted (recipient)', email: email, connection: connection });
+				return checkGreylist({
+                    ip: connection.remoteAddress,
+                    from: connection.envelope.mailFrom.address,
+                    to: email
+                }).then(resolve).catch(reject)
 			}else{
-				log.info({ message: 'Recipient rejected', email: email, connection: connection });
+				log.info({ message: 'Recipient rejected (recipient)', email: email, connection: connection });
                 var error = new Error('Recipient address rejected: User unknown in local recipient table');
                 error.responseCode = 550;
 				return reject(error);

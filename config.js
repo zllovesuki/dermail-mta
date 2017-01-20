@@ -27,6 +27,9 @@ var self = module.exports = {
 		},
 		checkRecipient: function() {
 			return self.apiEndpoint() + '/rx/check-recipient';
+		},
+		greylist: function() {
+			return self.apiEndpoint() + '/rx/greylist';
 		}
 	}
 }
