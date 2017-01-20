@@ -1,6 +1,6 @@
 {
   "name": "dermail-mta",
-  "version": "4.1.1",
+  "version": "4.2.0",
   "description": "Dermail MTA",
   "main": "index.js",
   "scripts": {
@@ -20,6 +20,7 @@
     "gelf-stream": "git+https://github.com/zllovesuki/gelf-stream.git",
     "iconv": "^2.2.1",
     "ipaddr.js": "^1.2.0",
+    "is-fqdn": "^1.0.1",
     "knox": "^0.9.2",
     "lodash": "^4.16.2",
     "mailparser": "^0.6.1",

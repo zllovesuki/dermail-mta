@@ -5,6 +5,7 @@ var	_ = require('lodash'),
 	request = require('superagent'),
 	dns = Promise.promisifyAll(require('dns')),
 	fs = Promise.promisifyAll(require('fs')),
+    isFQDN = require('is-fqdn'),
 	log;
 
 var resolv = fs.readFileSync('/etc/resolv.conf', {encoding: 'utf-8'});
@@ -30,7 +31,47 @@ if (!!config.graylog) {
 	});
 }
 
-var validateRecipient = function(email, envelope) {
+var checkReverseRecord = function(ip, domain) {
+    return dns.reverseAsync(ip).then(function(hostnames) {
+        return hostnames.indexOf(domain) !== -1
+    }).catch(function(e) {
+        return false;
+    })
+}
+
+var checkARecord = function(ip, domain) {
+    return dns.resolve4Async(domain).then(function(ips) {
+        return ips.indexOf(ip) !== -1
+    }).catch(function(e) {
+        return false;
+    })
+}
+
+var validateSender = function(email, connection) {
+    return new Promise(function(resolve, reject) {
+        if (!isFQDN(connection.hostNameAppearsAs)) {
+            log.info({ message: 'Connection rejected (invalid hostname)', email: email, connection: connection });
+            var error = new Error('Invalid Hostname');
+            error.responseCode = 530;
+			return reject(error)
+        }
+        return Promise.all([
+            checkReverseRecord(connection.remoteAddress, connection.hostNameAppearsAs),
+            checkARecord(connection.remoteAddress, connection.hostNameAppearsAs)
+        ]).spread(function(reverseValid, AValid) {
+            if (reverseValid === true && AValid === true) {
+                return resolve();
+            }else{
+                log.info({ message: 'Connection rejected (invalid IP-Domain mapping)', email: email, connection: connection });
+                var error = new Error('Invalid IP-Domain Mapping')
+                error.responseCode = 530;
+				return reject(error);
+            }
+        })
+    })
+}
+
+var validateRecipient = function(email, connection) {
 	return new Promise(function(resolve, reject) {
 		return request
 		.post(config.rx.checkRecipient())
@@ -47,11 +88,13 @@ var validateRecipient = function(email, envelope) {
 				return resolve();
 			}
 			if (res.body.ok === true) {
-				log.info({ message: 'Recipient accepted', email: email, envelope: envelope });
+				log.info({ message: 'Recipient accepted', email: email, connection: connection });
 				return resolve();
 			}else{
-				log.info({ message: 'Recipient rejected', email: email, envelope: envelope });
-				return reject(new Error('Invalid'));
+				log.info({ message: 'Recipient rejected', email: email, connection: connection });
+                var error = new Error('Recipient address rejected: User unknown in local recipient table');
+                error.responseCode = 550;
+				return reject(error);
 			}
 		});
 	})
@@ -107,7 +150,9 @@ var validateConnection = function(connection) {
 		return spamhausZen(remoteAddress)
 		.then(function(rejection) {
 			log.info({ message: 'Connection rejected by Spamhaus', connection: connection });
-			return reject(new Error('Your IP is Blacklisted by Spamhaus'))
+            var error = new Error('Your IP is Blacklisted by Spamhaus');
+            error.responseCode = 530;
+			return reject(error)
 		})
 		.catch(function(acceptance) {
 			log.info({ message: 'Connection accepted', connection: connection });
@@ -124,6 +169,7 @@ MTA.start({
 	tmp: config.tmpDir || '/tmp',
 	handlers: {
 		validateConnection: validateConnection,
+        validateSender: validateSender,
 		validateRecipient: validateRecipient,
 		mailReady: mailReady
 	},
