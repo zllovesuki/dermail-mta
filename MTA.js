@@ -31,6 +31,14 @@ if (!!config.graylog) {
 	});
 }
 
+var checkReverseRecord = function(ip, domain) {
+    return dns.reverseAsync(ip).then(function(hostnames) {
+        return hostnames.indexOf(domain) !== -1
+    }).catch(function(e) {
+        return false;
+    })
+}
+
 var checkARecord = function(ip, domain) {
     return dns.resolve4Async(domain).then(function(ips) {
         return ips.indexOf(ip) !== -1
@@ -47,8 +55,11 @@ var validateSender = function(email, connection) {
             error.responseCode = 530;
 			return reject(error)
         }
-        return checkARecord(connection.remoteAddress, connection.hostNameAppearsAs).then(function(AValid) {
-            if (connection.clientHostname === connection.hostNameAppearsAs && AValid === true) {
+        return Promise.all([
+            checkReverseRecord(connection.remoteAddress, connection.hostNameAppearsAs),
+            checkARecord(connection.remoteAddress, connection.hostNameAppearsAs)
+        ]).spread(function(reverseValid, AValid) {
+            if (reverseValid === true && AValid === true) {
                 log.info({ message: 'Connection accepted (valid hostname and mapping)', email: email, connection: connection });
                 return resolve();
             }else{
