@@ -31,9 +31,22 @@ if (!!config.graylog) {
 	});
 }
 
-var checkReverseRecord = function(ip, domain) {
+var checkReverseRecordRelax = function(ip, domain) {
+    domain = domain.split('.').slice(1).join('.');
     return dns.reverseAsync(ip).then(function(hostnames) {
-        return hostnames.indexOf(domain) !== -1
+        /*
+        Godsent Microsoft pulls shits like this:
+        clientHostname: mail-by2nam03on0082.outbound.protection.outlook.com
+        hostNameAppearsAs: nam03-by2-obe.outbound.protection.outlook.com
+        Their explantion given (https://support.microsoft.com/en-us/help/3019655/recipient-rejects-mail-from-exchange-online-or-exchange-online-protection,-and-you-receive-a-host-name-does-not-match-the-ip-address-error)
+        is utterly bullshit (it doesn't match)
+        Therefore, we will relax the matching by dropping the host
+        (e.g. 1.b.c.d and 2.b.c.d will match)
+        */
+        return hostnames.reduce(function(good, hostname) {
+            if (hostname.split('.').slice(1).join('.') === domain) good = true;
+            return good
+        }, false)
     }).catch(function(e) {
         return false;
     })
@@ -56,7 +69,10 @@ var validateSender = function(email, connection) {
 			return reject(error)
         }
         return Promise.all([
-            checkReverseRecord(connection.remoteAddress, connection.hostNameAppearsAs),
+            // Technically, connection.clientHostname is the reverse record
+            // However, we want to be sure "flexible"
+            // (disabled via disableReverseLookup = true)
+            checkReverseRecordRelax(connection.remoteAddress, connection.hostNameAppearsAs),
             checkARecord(connection.remoteAddress, connection.hostNameAppearsAs)
         ]).spread(function(reverseValid, AValid) {
             if (reverseValid === true && AValid === true) {
@@ -205,6 +221,7 @@ MTA.start({
 		mailReady: mailReady
 	},
 	smtpOptions: {
+        disableReverseLookup: true,
 		size: config.mailSizeLimit || 52428800, // Default 50 MB message limit
 		// Notice that this is the ENTIRE email. Headers, body, attachments, etc.
 		banner: 'Dermail.net, by sdapi.net',
