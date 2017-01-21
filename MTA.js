@@ -17,6 +17,8 @@ if (resolv.indexOf('127.0.0.1') === -1) {
 var MTA = require('dermail-smtp-inbound');
 var messageQ = new Queue('dermail-mta', config.redisQ.port, config.redisQ.host);
 
+var penalty = 20 * 1000; // 20 seconds
+
 if (!!config.graylog) {
 	log = require('bunyan').createLogger({
 		name: 'MTA',
@@ -31,6 +33,111 @@ if (!!config.graylog) {
 	});
 }
 
+var reverseIP = function(ip) {
+	var array = ip.split('.');
+	array.reverse();
+	return array.join('.');
+}
+
+var spamhausReturnCodes = {
+	'127.0.0.2': 'SBL - Spamhaus Maintained',
+	'127.0.0.3': '- - reserved for future use',
+	'127.0.0.4': 'XBL - CBL Detected Address',
+	'127.0.0.5': 'XBL - NJABL Proxies (customized)',
+	'127.0.0.6': 'XBL - reserved for future use',
+	'127.0.0.7': 'XBL - reserved for future use',
+	'127.0.0.8': 'XBL - reserved for future use',
+	'127.0.0.9': '- - reserved for future use',
+	'127.0.0.10': 'PBL - ISP Maintained',
+	'127.0.0.11': 'PBL - Spamhaus Maintained',
+} // http://zee.balogh.sk/?p=881
+
+var checkMapping = function(connection) {
+    return new Promise(function(resolve, reject) {
+        if (!isFQDN(connection.hostNameAppearsAs)) {
+            log.info({ message: 'Connection rejected (invalid hostname)', connection: connection });
+            var error = new Error('Invalid Hostname');
+            error.responseCode = 530;
+            return reject(error)
+        }
+        /*
+        Godsent Microsoft pulls shits like this:
+        clientHostname: mail-by2nam03on0082.outbound.protection.outlook.com
+        hostNameAppearsAs: nam03-by2-obe.outbound.protection.outlook.com
+        Their explantion given (https://support.microsoft.com/en-us/help/3019655/recipient-rejects-mail-from-exchange-online-or-exchange-online-protection,-and-you-receive-a-host-name-does-not-match-the-ip-address-error)
+        is utterly bullshit (it doesn't match)
+        Therefore, we will relax the matching by dropping the host
+        (e.g. 1.b.c.d and 2.b.c.d will match)
+
+        Then we have fucking Facebook
+        clientHostname: 66-220-144-143.outmail.facebook.com
+        hostNameAppearsAs: mx-out.facebook.com
+
+        we will now do a if-not-match-delay-for-20-seconds
+        */
+        return checkARecord(connection.remoteAddress, connection.hostNameAppearsAs).then(function(AValid) {
+            if (connection.clientHostname === connection.hostNameAppearsAs && AValid === true) {
+                log.info({ message: 'Connection accepted (valid IP-Domain mapping)', connection: connection });
+                return resolve();
+            }
+            log.info({ message: 'Invalid IP-Domain mapping, giving 20 seconds delay', connection: connection });
+            connection.delay = true;
+            return resolve();
+        })
+    });
+}
+
+var spamhausZen = function(ip) {
+	return new Promise(function(resolve, reject) {
+		ip = reverseIP(ip);
+		var query = ip + '.zen.spamhaus.org';
+		return dns
+		.resolve4Async(query)
+		.then(resolve)
+		.catch(reject);
+	})
+}
+
+var checkSpamhaus = function(connection) {
+    return new Promise(function(resolve, reject) {
+        var remoteAddress = connection.remoteAddress;
+		spamhausZen(remoteAddress)
+		.then(function(rejection) {
+			log.info({ message: 'Connection rejected by Spamhaus', connection: connection, spamhaus: rejection });
+            var error = new Error('Your IP is Blacklisted by Spamhaus');
+            error.responseCode = 530;
+			return reject(error)
+		})
+		.catch(function(acceptance) {
+			log.info({ message: 'Connection accepted (spamhaus ok)', connection: connection, spamhaus: acceptance });
+			return resolve();
+		})
+    });
+}
+
+var validateSender = function(email, connection) {
+    return new Promise(function(resolve, reject) {
+        checkMapping(connection).then(function() {
+            if (connection.delay) {
+                log.info({ message: 'Delaying Spamhaus check', connection: connection})
+                setTimeout(function() {
+                    checkSpamhaus(connection).then(resolve).catch(reject)
+                }, penalty)
+            }else{
+                checkSpamhaus(connection).then(resolve).catch(function(e) {
+                    setTimeout(function() {
+                        reject(e)
+                    }, penalty);
+                })
+            }
+        }).catch(function(e) {
+            setTimeout(function() {
+                reject(e)
+            }, penalty);
+        })
+	})
+}
+
 var checkARecord = function(ip, domain) {
     return dns.resolve4Async(domain).then(function(ips) {
         return ips.indexOf(ip) !== -1
@@ -43,7 +150,7 @@ var checkRecipient = function(email, connection) {
     return new Promise(function(resolve, reject) {
 		return request
 		.post(config.rx.checkRecipient())
-		.timeout(5000)
+		.timeout(4500)
 		.set('X-remoteSecret', config.remoteSecret)
 		.send({
 			to: email
@@ -72,6 +179,7 @@ var checkGreylist = function(triplet) {
     return new Promise(function(resolve, reject) {
         return request
         .post(config.rx.greylist())
+        .timeout(4500)
         .set('X-remoteSecret', config.remoteSecret)
         .send(triplet)
         .set('Accept', 'application/json')
@@ -96,115 +204,66 @@ var checkGreylist = function(triplet) {
 
 var validateRecipient = function(email, connection) {
     return new Promise(function(resolve, reject) {
-        checkRecipient(email, connection).then(function() {
-            if (!isFQDN(connection.hostNameAppearsAs)) {
-                log.info({ message: 'Connection rejected (invalid hostname)', connection: connection });
-                var error = new Error('Invalid Hostname');
-                error.responseCode = 530;
-                return reject(error)
-            }
-            /*
-            Godsent Microsoft pulls shits like this:
-            clientHostname: mail-by2nam03on0082.outbound.protection.outlook.com
-            hostNameAppearsAs: nam03-by2-obe.outbound.protection.outlook.com
-            Their explantion given (https://support.microsoft.com/en-us/help/3019655/recipient-rejects-mail-from-exchange-online-or-exchange-online-protection,-and-you-receive-a-host-name-does-not-match-the-ip-address-error)
-            is utterly bullshit (it doesn't match)
-            Therefore, we will relax the matching by dropping the host
-            (e.g. 1.b.c.d and 2.b.c.d will match)
-
-            Then we have fucking Facebook
-            clientHostname: 66-220-144-143.outmail.facebook.com
-            hostNameAppearsAs: mx-out.facebook.com
-
-            Sigh. Moving to if-not-match-goes-to-greylist instead
-            */
-            return checkARecord(connection.remoteAddress, connection.hostNameAppearsAs).then(function(AValid) {
-                if (connection.clientHostname === connection.hostNameAppearsAs && AValid === true) {
-                    log.info({ message: 'Connection accepted (valid IP-Domain mapping)', connection: connection });
-                    return resolve();
-                }
-                log.info({ message: 'Invalid IP-Domain mapping, using greylist instead', connection: connection });
+        if (connection.delay) {
+            log.info({ message: 'Delaying recipient check', connection: connection})
+            setTimeout(function() {
+                checkRecipient(email, connection).then(function() {
+                    return checkGreylist({
+                        ip: connection.remoteAddress,
+                        from: connection.envelope.mailFrom.address,
+                        to: email
+                    })
+                }).then(resolve).catch(reject)
+            }, penalty)
+        }else{
+            checkRecipient(email, connection).then(function() {
                 return checkGreylist({
                     ip: connection.remoteAddress,
                     from: connection.envelope.mailFrom.address,
                     to: email
-                }).then(resolve).catch(reject)
+                })
+            }).then(resolve).catch(function(e) {
+                setTimeout(function() {
+                    reject(e)
+                }, penalty);
             })
-        })
+        }
     });
+}
+
+var queueProcess = function(connection) {
+    connection.date = new Date().toISOString();
+    log.info({ message: 'Mail ready for process', connection: connection });
+    return messageQ.add({
+        type: 'processMail',
+        payload: connection
+    }, config.Qconfig)
+}
+
+var mailReady = function(connection) {
+	return new Promise(function(resolve, reject) {
+		if (connection.delay) {
+            log.info({ message: 'Delaying data process', connection: connection})
+            setTimeout(function() {
+                queueProcess(connection).then(resolve).catch(resolve)
+            }, penalty)
+        }else{
+            queueProcess(connection).then(resolve).catch(resolve)
+        }
+	})
 }
 
 /*
     So, in short,
-    1. First check for spamhaus
-    1.5. Validation of DNS check by dermall-smtp-inbound
-    2. Check for envelope recipient
-    3. Check for IP-Domain mapping
-        - If matches, skip Greylisting
-        - Otherwise greylist
-    4. Assuming greylist check was passed (or skipped), mail ready to be processed by API
+    1. Validation of DNS - by dermall-smtp-inbound
+    2. Check for IP-Domain Mapping
+        - If it matches, no delay is given
+        - It it does not match, a 20 seconds delay is imposed
+    3. Check for Spamhaus (after 20 seconds delay if applicable)
+    4. Check for envelope recipient
+    5. Check for greylist (after 20 seconds delay if applicable)
+    6. Mail ready to be processed by API-Worker
 */
-
-var mailReady = function(connection) {
-	return new Promise(function(resolve, reject) {
-		connection.date = new Date().toISOString();
-		log.info({ message: 'Mail ready for process', connection: connection });
-		return messageQ.add({
-			type: 'processMail',
-			payload: connection
-		}, config.Qconfig)
-		.then(function() {
-			return resolve();
-		})
-	})
-}
-
-var reverseIP = function(ip) {
-	var array = ip.split('.');
-	array.reverse();
-	return array.join('.');
-}
-
-var spamhausReturnCodes = {
-	'127.0.0.2': 'SBL - Spamhaus Maintained',
-	'127.0.0.3': '- - reserved for future use',
-	'127.0.0.4': 'XBL - CBL Detected Address',
-	'127.0.0.5': 'XBL - NJABL Proxies (customized)',
-	'127.0.0.6': 'XBL - reserved for future use',
-	'127.0.0.7': 'XBL - reserved for future use',
-	'127.0.0.8': 'XBL - reserved for future use',
-	'127.0.0.9': '- - reserved for future use',
-	'127.0.0.10': 'PBL - ISP Maintained',
-	'127.0.0.11': 'PBL - Spamhaus Maintained',
-} // http://zee.balogh.sk/?p=881
-
-var spamhausZen = function(ip) {
-	return new Promise(function(resolve, reject) {
-		ip = reverseIP(ip);
-		var query = ip + '.zen.spamhaus.org';
-		return dns
-		.resolve4Async(query)
-		.then(resolve)
-		.catch(reject);
-	})
-}
-
-var validateConnection = function(connection) {
-	return new Promise(function(resolve, reject) {
-		var remoteAddress = connection.remoteAddress;
-		return spamhausZen(remoteAddress)
-		.then(function(rejection) {
-			log.info({ message: 'Connection rejected by Spamhaus', connection: connection, spamhaus: rejection });
-            var error = new Error('Your IP is Blacklisted by Spamhaus');
-            error.responseCode = 530;
-			return reject(error)
-		})
-		.catch(function(acceptance) {
-			log.info({ message: 'Connection accepted (spamhaus ok)', connection: connection, spamhaus: acceptance });
-			return resolve();
-		})
-	})
-}
 
 var letsencrypt = config.letsencrypt;
 
@@ -213,11 +272,12 @@ MTA.start({
 	port: process.env.PORT || 25,
 	tmp: config.tmpDir || '/tmp',
 	handlers: {
-		validateConnection: validateConnection,
+        validateSender: validateSender,
 		validateRecipient: validateRecipient,
 		mailReady: mailReady
 	},
 	smtpOptions: {
+        logger: (typeof process.env.DEBUG !== 'undefined'),
 		size: config.mailSizeLimit || 52428800, // Default 50 MB message limit
 		// Notice that this is the ENTIRE email. Headers, body, attachments, etc.
 		banner: 'Dermail.net, by sdapi.net',
