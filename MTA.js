@@ -31,27 +31,6 @@ if (!!config.graylog) {
 	});
 }
 
-var checkReverseRecordRelax = function(ip, domain) {
-    domain = domain.split('.').slice(1).join('.');
-    return dns.reverseAsync(ip).then(function(hostnames) {
-        /*
-        Godsent Microsoft pulls shits like this:
-        clientHostname: mail-by2nam03on0082.outbound.protection.outlook.com
-        hostNameAppearsAs: nam03-by2-obe.outbound.protection.outlook.com
-        Their explantion given (https://support.microsoft.com/en-us/help/3019655/recipient-rejects-mail-from-exchange-online-or-exchange-online-protection,-and-you-receive-a-host-name-does-not-match-the-ip-address-error)
-        is utterly bullshit (it doesn't match)
-        Therefore, we will relax the matching by dropping the host
-        (e.g. 1.b.c.d and 2.b.c.d will match)
-        */
-        return hostnames.reduce(function(good, hostname) {
-            if (hostname.split('.').slice(1).join('.') === domain) good = true;
-            return good
-        }, false)
-    }).catch(function(e) {
-        return false;
-    })
-}
-
 var checkARecord = function(ip, domain) {
     return dns.resolve4Async(domain).then(function(ips) {
         return ips.indexOf(ip) !== -1
@@ -60,32 +39,33 @@ var checkARecord = function(ip, domain) {
     })
 }
 
-var validateSender = function(email, connection) {
+var checkRecipient = function(email, connection) {
     return new Promise(function(resolve, reject) {
-        if (!isFQDN(connection.hostNameAppearsAs)) {
-            log.info({ message: 'Connection rejected (invalid hostname)', email: email, connection: connection });
-            var error = new Error('Invalid Hostname');
-            error.responseCode = 530;
-			return reject(error)
-        }
-        return Promise.all([
-            // Technically, connection.clientHostname is the reverse record
-            // However, we want to be sure "flexible"
-            // (disabled via disableReverseLookup = true)
-            checkReverseRecordRelax(connection.remoteAddress, connection.hostNameAppearsAs),
-            checkARecord(connection.remoteAddress, connection.hostNameAppearsAs)
-        ]).spread(function(reverseValid, AValid) {
-            if (reverseValid === true && AValid === true) {
-                log.info({ message: 'Connection accepted (valid hostname and mapping)', email: email, connection: connection });
+		return request
+		.post(config.rx.checkRecipient())
+		.timeout(5000)
+		.set('X-remoteSecret', config.remoteSecret)
+		.send({
+			to: email
+		})
+		.set('Accept', 'application/json')
+		.end(function(err, res){
+			if (err) {
+				// Service not available, we will let it slide
+				log.error({ message: 'Service (recipient) not available', error: err.response.body });
+				return resolve();
+			}
+			if (res.body.ok === true) {
+				log.info({ message: 'Recipient accepted (recipient)', email: email, connection: connection });
                 return resolve();
-            }else{
-                log.info({ message: 'Connection rejected (invalid IP-Domain mapping)', email: email, connection: connection });
-                var error = new Error('Invalid IP-Domain Mapping')
-                error.responseCode = 530;
+			}else{
+				log.info({ message: 'Recipient rejected (recipient)', email: email, connection: connection });
+                var error = new Error('Recipient address rejected: User unknown in local recipient table');
+                error.responseCode = 550;
 				return reject(error);
-            }
-        })
-    })
+			}
+		});
+	})
 }
 
 var checkGreylist = function(triplet) {
@@ -115,37 +95,55 @@ var checkGreylist = function(triplet) {
 }
 
 var validateRecipient = function(email, connection) {
-	return new Promise(function(resolve, reject) {
-		return request
-		.post(config.rx.checkRecipient())
-		.timeout(5000)
-		.set('X-remoteSecret', config.remoteSecret)
-		.send({
-			to: email
-		})
-		.set('Accept', 'application/json')
-		.end(function(err, res){
-			if (err) {
-				// Service not available, we will let it slide
-				log.error({ message: 'Service (recipient) not available', error: err.response.body });
-				return resolve();
-			}
-			if (res.body.ok === true) {
-				log.info({ message: 'Recipient accepted (recipient)', email: email, connection: connection });
-				return checkGreylist({
+    return new Promise(function(resolve, reject) {
+        checkRecipient(email, connection).then(function() {
+            if (!isFQDN(connection.hostNameAppearsAs)) {
+                log.info({ message: 'Connection rejected (invalid hostname)', connection: connection });
+                var error = new Error('Invalid Hostname');
+                error.responseCode = 530;
+                return reject(error)
+            }
+            /*
+            Godsent Microsoft pulls shits like this:
+            clientHostname: mail-by2nam03on0082.outbound.protection.outlook.com
+            hostNameAppearsAs: nam03-by2-obe.outbound.protection.outlook.com
+            Their explantion given (https://support.microsoft.com/en-us/help/3019655/recipient-rejects-mail-from-exchange-online-or-exchange-online-protection,-and-you-receive-a-host-name-does-not-match-the-ip-address-error)
+            is utterly bullshit (it doesn't match)
+            Therefore, we will relax the matching by dropping the host
+            (e.g. 1.b.c.d and 2.b.c.d will match)
+
+            Then we have fucking Facebook
+            clientHostname: 66-220-144-143.outmail.facebook.com
+            hostNameAppearsAs: mx-out.facebook.com
+
+            Sigh. Moving to if-not-match-goes-to-greylist instead
+            */
+            return checkARecord(connection.remoteAddress, connection.hostNameAppearsAs).then(function(AValid) {
+                if (connection.clientHostname === connection.hostNameAppearsAs && AValid === true) {
+                    log.info({ message: 'Connection accepted (valid IP-Domain mapping)', connection: connection });
+                    return resolve();
+                }
+                log.info({ message: 'Invalid IP-Domain mapping, using greylist instead', connection: connection });
+                return checkGreylist({
                     ip: connection.remoteAddress,
                     from: connection.envelope.mailFrom.address,
                     to: email
                 }).then(resolve).catch(reject)
-			}else{
-				log.info({ message: 'Recipient rejected (recipient)', email: email, connection: connection });
-                var error = new Error('Recipient address rejected: User unknown in local recipient table');
-                error.responseCode = 550;
-				return reject(error);
-			}
-		});
-	})
+            })
+        })
+    });
 }
+
+/*
+    So, in short,
+    1. First check for spamhaus
+    1.5. Validation of DNS check by dermall-smtp-inbound
+    2. Check for envelope recipient
+    3. Check for IP-Domain mapping
+        - If matches, skip Greylisting
+        - Otherwise greylist
+    4. Assuming greylist check was passed (or skipped), mail ready to be processed by API
+*/
 
 var mailReady = function(connection) {
 	return new Promise(function(resolve, reject) {
@@ -216,12 +214,10 @@ MTA.start({
 	tmp: config.tmpDir || '/tmp',
 	handlers: {
 		validateConnection: validateConnection,
-        validateSender: validateSender,
 		validateRecipient: validateRecipient,
 		mailReady: mailReady
 	},
 	smtpOptions: {
-        disableReverseLookup: true,
 		size: config.mailSizeLimit || 52428800, // Default 50 MB message limit
 		// Notice that this is the ENTIRE email. Headers, body, attachments, etc.
 		banner: 'Dermail.net, by sdapi.net',
