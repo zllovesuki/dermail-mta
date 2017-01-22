@@ -272,6 +272,9 @@ MTA.start({
     port: process.env.PORT || 25,
     tmp: config.tmpDir || '/tmp',
     handlers: {
+        onError: function(err) {
+            log.error({ message: 'SMTP Server returns an error', error: err })
+        },
         validateSender: validateSender,
         validateRecipient: validateRecipient,
         mailReady: mailReady
