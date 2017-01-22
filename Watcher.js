@@ -1,20 +1,20 @@
-var	config = require('./config'),
+var    config = require('./config'),
     fs = require('fs'),
     pm2 = require('pm2'),
-	log;
+    log;
 
 if (!!config.graylog) {
-	log = require('bunyan').createLogger({
-		name: 'MTA-Watcher',
-		streams: [{
-			type: 'raw',
-			stream: require('gelf-stream').forBunyan(config.graylog.host, config.graylog.port)
-		}]
-	});
+    log = require('bunyan').createLogger({
+        name: 'MTA-Watcher',
+        streams: [{
+            type: 'raw',
+            stream: require('gelf-stream').forBunyan(config.graylog.host, config.graylog.port)
+        }]
+    });
 }else{
-	log = require('bunyan').createLogger({
-		name: 'MTA-Watcher'
-	});
+    log = require('bunyan').createLogger({
+        name: 'MTA-Watcher'
+    });
 }
 
 var letsencrypt = config.letsencrypt;

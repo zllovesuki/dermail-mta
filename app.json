@@ -1,37 +1,37 @@
 {
-	"apps": [
-		{
-			"name": "MTA",
-			"script": "MTA.js",
-			"env_dev": {
-				"PORT": 2525,
-			},
-			"watch": true,
-			"restart_delay": 5000,
-			"exec_mode": "cluster",
-			"instances": 4
-		},
-		{
-			"name": "MTA-Worker",
-			"script": "Worker.js",
-			"watch": true,
-			"restart_delay": 5000,
-			"exec_mode": "cluster",
-			"instances": 4
-		},
-		{
-			"name": "MTA-GC",
-			"script": "GC.js",
-			"watch": true,
-			"restart_delay": 5000,
-			"exec_mode": "fork"
-		},
-		{
-			"name": "MTA-Watcher",
-			"script": "Watcher.js",
-			"watch": true,
-			"restart_delay": 5000,
-			"exec_mode": "fork"
-		}
-	]
+    "apps": [
+        {
+            "name": "MTA",
+            "script": "MTA.js",
+            "env_dev": {
+                "PORT": 2525,
+            },
+            "watch": true,
+            "restart_delay": 5000,
+            "exec_mode": "cluster",
+            "instances": 4
+        },
+        {
+            "name": "MTA-Worker",
+            "script": "Worker.js",
+            "watch": true,
+            "restart_delay": 5000,
+            "exec_mode": "cluster",
+            "instances": 4
+        },
+        {
+            "name": "MTA-GC",
+            "script": "GC.js",
+            "watch": true,
+            "restart_delay": 5000,
+            "exec_mode": "fork"
+        },
+        {
+            "name": "MTA-Watcher",
+            "script": "Watcher.js",
+            "watch": true,
+            "restart_delay": 5000,
+            "exec_mode": "fork"
+        }
+    ]
 }
