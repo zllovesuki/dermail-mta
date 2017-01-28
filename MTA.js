@@ -159,7 +159,7 @@ var checkRecipient = function(email, connection) {
         .end(function(err, res){
             if (err) {
                 // Service not available, we will let it slide
-                log.error({ message: 'Service (recipient) not available', error: err.response.body });
+                log.error({ message: 'Service (recipient) not available', error: err });
                 return resolve();
             }
             if (res.body.ok === true) {
