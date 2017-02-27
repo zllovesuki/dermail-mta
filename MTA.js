@@ -186,7 +186,7 @@ var checkGreylist = function(triplet) {
         .end(function(err, res){
             if (err) {
                 // Service not available, we will let it slide
-                log.error({ message: 'Service (greylist) not available', error: err.response.body });
+                log.error({ message: 'Service (greylist) not available', error: err });
                 return resolve();
             }
             if (res.body.ok === true) {
