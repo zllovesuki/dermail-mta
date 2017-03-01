@@ -52,9 +52,9 @@ var start = function() {
 
             log.info('Process ' + process.pid + ' is running as an MTA-Worker.')
 
-            s3Config = res.body.data;
-
-            var s3 = knox.createClient(res.body.data);
+            var s3 = knox.createClient(Object.assign(res.body.data, {
+                style: 'path'
+            }));
 
             return resolve(s3);
 
@@ -352,7 +352,7 @@ start()
                             return reject(e);
                         })
 
-                        s3.putStream(fileStream, '/' + s3Config.bucket + '/raw/' + filename, headers, function(err, res) {
+                        s3.putStream(fileStream, 'raw/' + filename, headers, function(err, res) {
                             if (err) {
                                 return reject(err);
                             }
@@ -403,7 +403,7 @@ start()
                         return reject(e);
                     })
 
-                    s3.putStream(fileStream, '/' + s3Config.bucket + '/' + attachment.checksum + '/' + attachment.generatedFileName, headers, function(err, res) {
+                    s3.putStream(fileStream, attachment.checksum + '/' + attachment.generatedFileName, headers, function(err, res) {
                         if (err) {
                             return reject(err);
                         }
