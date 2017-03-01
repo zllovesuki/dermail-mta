@@ -352,7 +352,7 @@ start()
                             return reject(e);
                         })
 
-                        s3.putStream(fileStream, '/' + s3.bucket + '/raw/' + filename, headers, function(err, res) {
+                        s3.putStream(fileStream, '/' + s3Config.bucket + '/raw/' + filename, headers, function(err, res) {
                             if (err) {
                                 return reject(err);
                             }
