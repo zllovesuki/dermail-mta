@@ -18,6 +18,7 @@ Promise.promisifyAll(redis.RedisClient.prototype);
 
 var messageQ = new Queue('dermail-mta', config.redisQ.port, config.redisQ.host);
 var redisStore = redis.createClient(config.redisQ);
+var s3Config = {};
 
 if (!!config.graylog) {
     log = bunyan.createLogger({
@@ -50,6 +51,8 @@ var start = function() {
             }
 
             log.info('Process ' + process.pid + ' is running as an MTA-Worker.')
+
+            s3Config = res.body.data;
 
             var s3 = knox.createClient(res.body.data);
 
@@ -349,7 +352,7 @@ start()
                             return reject(e);
                         })
 
-                        s3.putStream(fileStream, '/raw/' + filename, headers, function(err, res) {
+                        s3.putStream(fileStream, '/' + s3.bucket + '/raw/' + filename, headers, function(err, res) {
                             if (err) {
                                 return reject(err);
                             }
