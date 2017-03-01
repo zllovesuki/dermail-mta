@@ -403,7 +403,7 @@ start()
                         return reject(e);
                     })
 
-                    s3.putStream(fileStream, '/' + attachment.checksum + '/' + attachment.generatedFileName, headers, function(err, res) {
+                    s3.putStream(fileStream, '/' + s3Config.bucket + '/' + attachment.checksum + '/' + attachment.generatedFileName, headers, function(err, res) {
                         if (err) {
                             return reject(err);
                         }
