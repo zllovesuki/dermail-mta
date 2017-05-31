@@ -81,7 +81,7 @@ var checkMapping = function(connection) {
                 return resolve();
             }
             log.info({ message: 'Invalid IP-Domain mapping, giving 20 seconds delay', connection: connection });
-            connection.delay = true;
+            if (!process.env.PORT) connection.delay = true;
             return resolve();
         })
     });
@@ -176,6 +176,7 @@ var checkRecipient = function(email, connection) {
 }
 
 var checkGreylist = function(triplet) {
+    if (process.env.PORT) return Promise.resolve()
     return new Promise(function(resolve, reject) {
         return request
         .post(config.rx.greylist())

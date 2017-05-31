@@ -2,7 +2,7 @@ var os = require('os'),
     _ = require('lodash'),
     crypto = require('crypto'),
     Queue = require('bull'),
-    knox = require('knox'),
+    Minio = require('minio'),
     redis = require('redis'),
     config = require('./config'),
     Promise = require('bluebird'),
@@ -19,6 +19,8 @@ Promise.promisifyAll(redis.RedisClient.prototype);
 var messageQ = new Queue('dermail-mta', config.redisQ.port, config.redisQ.host);
 var redisStore = redis.createClient(config.redisQ);
 var s3Config = {};
+
+var s3 = {};
 
 if (!!config.graylog) {
     log = bunyan.createLogger({
@@ -52,11 +54,17 @@ var start = function() {
 
             log.info('Process ' + process.pid + ' is running as an MTA-Worker.')
 
-            var s3 = knox.createClient(Object.assign(res.body.data, {
-                style: 'path'
-            }));
+            s3 = res.body.data;
 
-            return resolve(s3);
+            var minioClient = new Minio.Client({
+                endPoint: s3.endpoint,
+                port: 443,
+                secure: true,
+                accessKey: s3.key,
+                secretKey: s3.secret
+            });
+
+            return resolve(minioClient);
 
         });
     });
@@ -126,7 +134,7 @@ var enqueue = function(type, payload) {
 }
 
 start()
-.then(function(s3) {
+.then(function(minioClient) {
     messageQ.process(3, function(job, done) {
 
         var data = job.data;
@@ -336,27 +344,37 @@ start()
 
             var filename = crypto.createHash('md5').update(mailPath).digest("hex");
 
-            var uploadRawStream = function(mailPath, filename) {
+            var getUploadPolicy = function(filename) {
                 return new Promise(function(resolve, reject) {
-                    fs.statAsync(mailPath)
-                    .then(function(stats) {
-                        var headers = {
-                            'Content-Length': stats.size,
-                            'Content-Type': 'text/plain'
-                        };
+                    var policy = minioClient.newPostPolicy()
+                    policy.setBucket(s3.bucket)
+                    policy.setKey(['raw', filename].join('/'))
+                    var expires = new Date
+                    expires.setSeconds(24 * 60 * 60 * 10)
+                    policy.setExpires(expires)
+                    policy.setContentType('text/plain')
+                    minioClient.presignedPostPolicy(policy, function(err, postURL, formData) {
+                        if (err) return reject(err);
+                        return resolve([
+                            postURL,
+                            formData
+                        ])
+                    })
+                });
+            }
 
-                        var fileStream = fs.createReadStream(mailPath);
-
-                        fileStream.on('error', function(e) {
-                            log.error({ message: 'Create read stream in saveRaw throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
-                            return reject(e);
+            var uploadRaw = function(mailPath, filename) {
+                return new Promise(function(resolve, reject) {
+                    getUploadPolicy(filename)
+                    .spread(function(postURL, formData) {
+                        var req = request.post(postURL)
+                        Object.keys(formData).forEach(function(key) {
+                            req.field(key, formData[key])
                         })
-
-                        s3.putStream(fileStream, 'raw/' + filename, headers, function(err, res) {
-                            if (err) {
-                                return reject(err);
-                            }
-                            return resolve();
+                        req.attach('file', mailPath, filename)
+                        req.end(function(err, res) {
+                            if (err) return reject(err)
+                            resolve();
                         })
                     })
                     .catch(function(e) {
@@ -365,7 +383,7 @@ start()
                 });
             }
 
-            return uploadRawStream(mailPath, filename)
+            return uploadRaw(mailPath, filename)
             .then(function() {
                 return setRawStatus(mailPath, 'yes');
             })
@@ -389,30 +407,46 @@ start()
 
             var attachmentPath = mailPath + '-' + crypto.createHash('md5').update(attachment.contentId).digest("hex");
 
-            var uploadS3Stream = function(connection, attachment) {
+            var getUploadPolicy = function(checksum, filename, contentType) {
                 return new Promise(function(resolve, reject) {
-                    var headers = {
-                        'Content-Length': attachment.length,
-                        'Content-Type': attachment.contentType
-                    };
-
-                    var fileStream = fs.createReadStream(attachmentPath);
-
-                    fileStream.on('error', function(e) {
-                        log.error({ message: 'Create read stream in fileStream throws an error', error: '[' + e.name + '] ' + e.message, stack: e.stack });
-                        return reject(e);
-                    })
-
-                    s3.putStream(fileStream, attachment.checksum + '/' + attachment.generatedFileName, headers, function(err, res) {
-                        if (err) {
-                            return reject(err);
-                        }
-                        return resolve();
+                    var policy = minioClient.newPostPolicy()
+                    policy.setBucket(s3.bucket)
+                    policy.setKey([checksum, filename].join('/'))
+                    var expires = new Date
+                    expires.setSeconds(24 * 60 * 60 * 10)
+                    policy.setExpires(expires)
+                    policy.setContentType(contentType)
+                    minioClient.presignedPostPolicy(policy, function(err, postURL, formData) {
+                        if (err) return reject(err);
+                        return resolve([
+                            postURL,
+                            formData
+                        ])
                     })
                 });
             }
 
-            return uploadS3Stream(connection, attachment)
+            var uploadAttachment = function(connction, attachment) {
+                return new Promise(function(resolve, reject) {
+                    getUploadPolicy(attachment.checksum, attachment.generatedFileName, attachment.contentType)
+                    .spread(function(postURL, formData) {
+                        var req = request.post(postURL)
+                        Object.keys(formData).forEach(function(key) {
+                            req.field(key, formData[key])
+                        })
+                        req.attach('file', attachmentPath, attachment.generatedFileName)
+                        req.end(function(err, res) {
+                            if (err) return reject(err)
+                            resolve();
+                        })
+                    })
+                    .catch(function(e) {
+                        return reject(e);
+                    })
+                });
+            }
+
+            return uploadAttachment(connection, attachment)
             .then(function() {
                 return setSingleAttachmentStatus(mailPath, attachment.contentId, 'yes');
             })
