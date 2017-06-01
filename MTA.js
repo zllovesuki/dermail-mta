@@ -193,6 +193,11 @@ var checkGreylist = function(triplet) {
             if (res.body.ok === true) {
                 log.info({ message: 'Recipient accepted (greylist)', triplet: triplet });
                 return resolve();
+            }else if (res.body.ok === null) {
+                log.info({ message: 'Recipient rejected (blacklist)', triplet: triplet });
+                var error = new Error('Your are rejected by policy')
+                error.responseCode = 530;
+                return reject(error)
             }else{
                 log.info({ message: 'Recipient temporaily rejected (greylist)', triplet: triplet });
                 var error = new Error('Greylisted: Please try again later')
@@ -212,7 +217,9 @@ var validateRecipient = function(email, connection) {
                     return checkGreylist({
                         ip: connection.remoteAddress,
                         from: connection.envelope.mailFrom.address,
-                        to: email
+                        to: email,
+                        clientHostname: connection.clientHostname,
+                        hostNameAppearsAs: connection.hostNameAppearsAs
                     })
                 }).then(resolve).catch(reject)
             }, penalty)
@@ -221,7 +228,9 @@ var validateRecipient = function(email, connection) {
                 return checkGreylist({
                     ip: connection.remoteAddress,
                     from: connection.envelope.mailFrom.address,
-                    to: email
+                    to: email,
+                    clientHostname: connection.clientHostname,
+                    hostNameAppearsAs: connection.hostNameAppearsAs
                 })
             }).then(resolve).catch(function(e) {
                 setTimeout(function() {
